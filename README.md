@@ -2,7 +2,7 @@
 
 ## About ##
 
-ProcessWire Site profile for building projects.
+Base ProcessWire Site profile for starting new projects.
 
 ## Install ##
 
