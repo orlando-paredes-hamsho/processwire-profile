@@ -1,0 +1,102 @@
+/**
+ * CSS used by the ProcessFormBuilder module
+ *
+ */
+
+span.asmFieldsetIndent {
+        float: left;
+        width: 15px;
+        height: 5px;
+}
+
+#content .asmFieldset {
+        font-weight: bold;
+}
+
+#content .InputfieldPageNameURL {
+	display: none; 
+}
+
+#content .asmFieldsetEnd .asmListItemStatus,
+#content .asmFieldsetEnd .asmListItemDesc {
+	display: none; 
+}
+
+#wrap_Inputfield_submit {
+	clear: both; 
+}
+
+#submit_page_entries {
+	float: right; 
+}
+
+#submit_delete_entries {
+	float: right; 
+	margin-right: 0;
+}
+
+textarea.code {
+	font-family: Courier, "Courier New", Monospace; 
+	padding: 5px !important; 
+	border-style: dashed; 
+	border-color: #ccc; 
+	color: #555; 
+}
+
+#filter_form > h2 {
+}
+
+#fieldsetActions > .ui-widget-content {
+	padding-bottom: 0;
+}
+	#fieldsetSubmitTo {
+		margin-bottom: 1em; 
+	}
+
+#savePageFields table th:first-child,
+#savePageFields table td:first-child {
+	text-align: right; 
+	
+}
+
+.InputfieldRenderValueMode .Inputfields .InputfieldHidden {
+	/* so that it can be seen with renderValue */
+	display: block;
+}
+
+.AdminDataTable ins {
+	color: green;
+	text-decoration: underline;
+}
+.AdminDataTable del {
+	color: red; 
+	text-decoration: line-through;
+}
+
+body.pw-init .InputfieldForm {
+	display: none; 
+}
+
+#filter_form {
+	margin-bottom: 0;
+}
+#filter_form + #entries_list_form {
+	margin-top: -1em;
+}
+
+#entries_list_form td ul {
+	margin: 0;
+	padding: 0;
+	list-style: disc !important; 
+}
+#entries_list_form td ul li {
+	display: list-item; 
+	list-style: disc;
+	margin: 0 0 0 1.25em;
+	padding: 0; 
+}
+
+.FormBuilderViewport {
+	margin-top: 1em;
+}
+

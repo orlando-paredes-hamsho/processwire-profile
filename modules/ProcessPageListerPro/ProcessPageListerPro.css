@@ -1,0 +1,21 @@
+
+#wrap_submit_config,
+#wrap_submit_reset,
+#wrap_submit_refresh {
+	float: right; 
+}
+
+#actions_viewport {
+	margin: 0;
+	padding: 0;
+	border: none; 
+	width: 100%;
+	height: 200px; 
+}
+
+body.ListerProConfig #head_button .dropdown-toggle,
+body.ListerProConfig #head_button ul.nav {
+	/* hide the 'add new' button in config mode */ 
+	display: none !important; 
+}
+

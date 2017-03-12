@@ -1,0 +1,43 @@
+#content {
+	/* if 100%, there is some overlap at the right edge */
+	width: 99%; 
+}
+
+form.InputfieldForm {
+	/* in webkit there is slight truncation of radio buttons and checkboxes if we don't do this */
+	margin-left: 1px; 
+}
+
+.Inputfields .ui-widget-header {
+	border: none;
+	background: none; 
+	padding: 0; 
+	margin: 0; 
+}
+
+#content .Inputfields .ui-widget-content, 
+#content .Inputfield > .ui-widget-content {
+	border: none;
+	background: none;
+	padding: 0;
+	margin: 0; 
+	margin-bottom: 0.25em; 
+}
+
+#content label.ui-widget-header .ui-icon {
+	display: none; 
+}
+
+#content .InputfieldFieldset > .ui-widget-content {
+	padding: 1em; 
+	border: 1px solid #ddd; 
+}
+#content .InputfieldFieldset > label.ui-widget-header {
+	font-size: 1.4em; 
+	margin: 2em 0 0.25em 0;
+}
+.InputfieldStateRequired > label.ui-widget-header:first-child:after {
+	color: red; 
+        content: ' *';
+}
+

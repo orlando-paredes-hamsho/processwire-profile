@@ -1,0 +1,77 @@
+<?php
+
+/**
+ * Action that sets a field value
+ *
+ */
+
+class PageActionSetField extends PageAction implements Module {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Page Action: Set Field Value', 
+			'summary' => 'Action for Lister that sets a name field to a given value.', 
+			'version' => 1, 
+			'author' => 'Ryan Cramer', 
+			'permission' => 'page-action-set-field',
+			'permissions' => array('page-action-set-field' => 'Page Action: Set Field Value')
+			); 
+	}
+
+	public function __construct() {
+		$this->set('set_field_name', ''); 
+		$this->set('set_field_value', '');
+	}
+
+	protected function ___action($item) {
+		$value = $this->set_field_value; 
+		$value = wirePopulateStringTags($value, $item); 
+		$of = $item->of();
+		if($of) $item->of(false); 
+		$item->set($this->set_field_name, $value); 			
+		if($of) $item->of(true); 
+		$this->message("Set '$this->set_field_name' value to '$value' for page: $item->path"); 
+		return true; 	
+	}
+
+	public function ___getConfigInputfields() {
+
+		$fieldset = parent::___getConfigInputfields();
+		$fieldset->label = $this->_('Set Field Value'); 
+		$fieldset->collapsed = Inputfield::collapsedYes; 
+		$fieldset->icon = 'fighter-jet';
+		$fieldset->description = $this->_('Warning: this can be very destructive so be extremely careful and test on pages you are not concerned about before applying to those you do. We recommend only using this on text or number fields.'); 
+		$fieldset->description .= ' ' . $this->_('You may optionally populate {tags} to insert the value of any page field, i.e. {page_field_name}'); 
+
+		$runner = $this->getRunner();
+		if($runner && $runner instanceof ProcessLister && $runner->template) {
+			$fields = $runner->template->fieldgroup; 
+		} else {
+			$fields = $this->wire('fields'); 
+		}
+
+		$f = $this->modules->get('InputfieldSelect'); 
+		$f->attr('name', 'set_field_name'); 
+		$f->label = $this->_('Field'); 	
+		$f->columnWidth = 40; 
+		foreach($fields as $field) {
+			if($field->type instanceof FieldtypeFieldsetOpen) continue; 
+			if($field->flags & Field::flagSystem && $field->name != 'title') continue; 
+			$f->addOption($field->name, $field->name); 
+		}
+		$f->attr('value', '');
+		$fieldset->add($f); 
+
+		$f = $this->modules->get('InputfieldTextarea'); 
+		$f->attr('name', 'set_field_value'); 
+		$f->attr('value', '');
+		$f->label = $this->_('Value'); 
+		$f->columnWidth = 60; 
+		$fieldset->add($f); 	
+
+		return $fieldset; 
+	}
+
+
+}
+

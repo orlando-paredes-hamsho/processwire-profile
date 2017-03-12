@@ -1,0 +1,400 @@
+<?php
+
+/**
+ * ProcessWire Form Builder File Inputfield
+ *
+ * Copyright (C) 2012 by Ryan Cramer Design, LLC
+ * 
+ * PLEASE DO NOT DISTRIBUTE
+ * 
+ */
+
+require_once(dirname(__FILE__) . '/InputfieldFormBuilder.php'); 
+
+/**
+ * File upload Inputfield for Form Builder
+ *
+ */
+class InputfieldFormBuilderFile extends InputfieldFormBuilder implements InputfieldHasArrayValue, InputfieldFormBuilderInterface {
+
+	/**
+	 * Return information about this module
+	 *
+	 */
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'File (for FormBuilder)',
+			'version' => 1,
+			'summary' => 'Form Builder file upload input (alpha test)',
+			'requires' => 'FormBuilder', 
+			);
+	}
+
+	protected static $fileFieldNames = array();
+
+	/**
+	 * Cached srcPath for hookEntriesSave hook
+	 *
+	 */
+	protected $srcPath = '';
+
+	/**
+	 * Initialize the file upload settings
+	 *
+	 */
+	public function init() {
+		parent::init();
+		$this->set('extensions', 'pdf doc docx xls xlsx gif jpg jpeg png');
+		$this->set('maxFiles', 1);
+		$this->set('maxFileSize', 1048576);
+		$this->attr('type', 'file');
+		$this->attr('value', array());
+	}
+
+	/**
+	 * Check to ensure that the containing form as an 'enctype' attr needed for uploading files
+	 *
+	 */
+	protected function checkFormEnctype() {
+		$parent = $this->parent;
+		while($parent) {
+			if($parent->attr('method') == 'post') {
+				if(!$parent->attr('enctype')) $parent->attr('enctype', 'multipart/form-data');
+				break;
+			}
+			$parent = $parent->parent;
+		}
+	}
+
+	/**
+	 * Set the parent of this Inputfield
+	 *
+	 * @param InputfieldWrapper $parent
+	 * @return this
+	 *
+	 */
+	public function setParent(InputfieldWrapper $parent) {
+		parent::setParent($parent);
+		$this->checkFormEnctype();
+		return $this;
+	}
+
+	/**
+	 * Render the filesize string
+	 *
+	 */
+	protected function renderFilesize($file) {
+		$filesize = (int) @filesize($file); 
+		if($filesize < 1024) {
+			$out = number_format($filesize) . ' ' . $this->_('b'); // bytes
+		} else {
+			$out = number_format(round(filesize($file) / 1024)) . ' ' . $this->_('kB'); // kilobytes
+		}
+		$out = "<span class='filesize detail'>$out</span>";
+		return $out; 
+	}
+
+	/**
+	 * Render and return the output for the <input type='file'> elements
+	 *
+	 */
+	public function ___render() {
+
+		$form = wire('forms')->load($this->formID); 
+		if(!$form || !($form->saveFlags & FormBuilderProcessor::saveFlagDB)) {
+			$this->error('formID: ' . $this->formID); 
+			return "<p class='ui-state-error'>" . $this->_('File fields require that you enable the "Save to entries database" action.') . "</p>";
+		}
+
+		if($this->maxFiles < 1) $this->maxFiles = 1;
+		$attrs = $this->getAttributes();
+		unset($attrs['value']); 
+		if(substr($attrs['name'], -1) != ']') $attrs['name'] .= '[]';
+
+		$out = '';
+		$name = $attrs['name'];
+		$value = $this->attr('value');
+		$savePath = $this->getSavePath();
+
+		$out .= "\n<ul class='InputfieldFormBuilderFileList'>";
+
+		for($n = 0; $n < $this->maxFiles; $n++) {
+
+			if(isset($value[$n])) {
+
+				$value[$n] = basename($value[$n]);
+				$filename = $savePath . $value[$n];
+				$basename = htmlentities($value[$n]);
+
+				$url = wire('forms')->getFileURL($this->formID, $this->entryID, $filename); 
+
+				$out .=	"\n\t" . 
+					"<li class='InputfieldFormBuilderFileItem'>" .  
+						"<a target='_blank' href='$url'>$basename</a> " .
+						$this->renderFilesize($filename) . " " . 
+						$this->renderFileDelete("_delete_$name", $basename) . 
+						"<input type='hidden' name='$attrs[name]' value='$basename' />" . 
+					"</li>";
+					
+			} else {
+				$out .=	
+					"\n\t<li class='InputfieldFormBuilderFileUpload'>" .  
+					"\n\t\t" . $this->renderFileInput($attrs['name']) . 
+					"\n\t</li>";
+			}
+		}
+		$out .= "\n</ul>";
+
+		return $out; 
+	}
+	
+	protected function ___renderFileInput($name) {
+		return "<input type='file' name='$name' />";
+	}
+	
+	protected function ___renderFileDelete($name, $filename) {
+		return 
+			"<label class='InputfieldFileFormBuilderDelete'>" .
+				"<input type='checkbox' name='$name' value='$filename' />&nbsp;" .
+				"<span class='pw-no-select'>" . $this->_('delete') . "</span>" .
+			"</label>";
+	}
+
+	/**
+	 * Render the value of this field without inputs
+	 *
+	 */
+	public function ___renderValue() {
+
+		$out = '';
+
+		foreach($this->attr('value') as $n => $pathname) {
+
+			$basename = basename($pathname);
+			$filename = $this->getSavePath() . $basename;
+			$basename = htmlentities($basename);
+
+			// @todo this is producing invalid file links when more than one file on the page
+			$url = wire('forms')->getFileURL($this->formID, $this->entryID, $filename);
+			
+			$out .= "<p class='InputfieldFormBuilderFileItem'>" . 
+				"<a href='$url'>$basename</a> " . 
+				$this->renderFilesize($filename) . 
+				"</p>";
+		}
+
+		return $out; 
+	}
+
+	/**
+	 * Return a location where the file will be saved
+	 *
+	 */
+	protected function getSavePath() {
+		$savePath = '';
+		if($this->entryID) {
+			$form = wire('forms')->load($this->formID);
+			if($form) $savePath = $form->entries()->getFilesPath($this->entryID);
+		}
+		if(!$savePath) $savePath = wire('forms')->getFilesPath(true); // true=get tmp dir
+		return $savePath;
+	}
+
+	/**
+	 * Reduce a filename (or basename) to a basename with only allowed ascii characters
+	 *
+	 */
+	protected function sanitizeBasename($filename) {
+		$info = pathinfo($filename);
+		$basename = basename($info['basename'], ".$info[extension]");
+		$basename = preg_replace('/[^-_a-zA-Z0-9]/', '-', trim($basename));
+		$ext = preg_replace('/[^-_a-zA-Z0-9]/', '-', $info['extension']);
+		return "$basename.$ext";
+	}
+
+	/**
+	 * Process fiel upload submission
+	 *
+	 * @param array $input
+	 *
+	 */
+	public function ___processInput(WireInputData $input) {
+
+		parent::___processInput($input);
+
+		$savePath = $this->getSavePath();
+		$name = $this->attr('name');
+		$value = $this->attr('value');
+
+		// check for deleted files
+		if(isset($input["_delete_$name"])) foreach($input["_delete_$name"] as $basename) {
+			$basename = $this->sanitizeBasename($basename); 
+			if(strlen($basename) < 3) continue; 
+			$key = array_search($basename, $value, true);
+			if($key === false) continue; 
+			$filename = $savePath . $basename;
+			if(is_file($filename) && is_writable($filename)) unlink($filename);
+			unset($value[$key]);
+			$this->message(sprintf($this->_('Deleted: %s'), $basename));
+		}
+
+		// restore the value attribute to have full path
+		foreach($value as $key => $basename) {
+			$value[$key] = $savePath . $this->sanitizeBasename($basename); 
+		}
+
+		// determine how many files will be allowed
+		$maxFiles = $this->maxFiles - count($value);
+
+		if($maxFiles > 0) { 
+			// process newly uploaded files
+			$ul = new WireUpload($name); 
+			$ul->setDestinationPath($savePath);
+			$ul->setOverwrite(false);
+			$ul->setMaxfiles($maxFiles);
+			$ul->setValidExtensions(explode(' ', trim($this->extensions))); 
+			if(method_exists($ul, 'setMaxFileSize')) $ul->setMaxFileSize($this->maxFileSize);
+
+			foreach($ul->execute() as $basename) {
+				// add additional files to our $value
+				$filename = $savePath . $basename; 
+				if($this->maxFileSize && filesize($filename) > $this->maxFileSize) {
+					$this->error("$filename - " . sprintf($this->_('Exceeds max file size of %d bytes.'), $this->maxFileSize));
+					unlink($filename);
+					continue; 
+				}
+				$value[] = $filename; 				
+			}
+
+			foreach($ul->getErrors() as $error) $this->error($error);
+		}
+
+		if($savePath == wire('forms')->getFilesPath(true)) {
+			// file is in temporary save path and needs to be moved to an entry
+			// add a hook to the entry save that will move this file to it's final destination
+			$this->hookID = wire('forms')->addHookAfter('FormBuilderEntries::save', $this, 'hookEntriesSave');
+			self::$fileFieldNames[] = $this->attr('name'); 
+		}
+
+		// make $value the new value attriute of this inputfield	
+		$this->setAttribute('value', array_merge($value, array()));  // array_merge forces key renumber
+
+		return $this; 
+	
+	}
+
+	/**
+	 * Hook that moves the file from it's temporary location to a permanent one
+	 *
+	 */
+	public function hookEntriesSave(HookEvent $event) {
+
+		// this ensures this only runs once
+		if(!count(self::$fileFieldNames)) return;
+
+		$entries = $event->object;	
+		$entryID = (int) $event->return;
+		if(!$entryID) return;
+
+		$entry = $event->arguments[0]; 
+		$entry['id'] = $entryID;
+
+		foreach(self::$fileFieldNames as $fileFieldNameKey => $name) {
+
+			$name = trim($name, '[]'); // is this necessary?
+			$value = $entry[$name];
+
+			if(!$this->srcPath) $this->srcPath = $this->getSavePath();
+			$srcPath = $this->srcPath;
+			$dstPath = $entries->getFilesPath($entryID);
+
+			foreach($value as $key => $pathname) {
+				$basename = basename($pathname); 
+				$srcFile = $srcPath . $basename;
+				$dstFile = $dstPath . $basename;
+				if(!is_file($srcFile)) {
+					unset($value[$key]); 
+					continue; 
+				}
+				copy($srcFile, $dstFile);
+				unlink($srcFile);
+				$value[$key] = $dstFile;
+			}
+
+			// update the value attribute to point to files in their new location
+			$this->attr('value', $value);
+
+			// prevent infinite loop from next call
+			$this->removeHook($this->hookID); 
+
+			// populate updated value back to entries
+			$entry[$name] = $value; 
+			unset(self::$fileFieldNames[$fileFieldNameKey]); 
+		}
+
+		$entries->save($entry); 
+
+		// set the entry ID		
+		$this->set('entryID', $entryID);
+
+		// clean out old files
+		$this->garbageCollection();
+	}
+
+	/**
+	 * Clear out any files in the savePath that may be present from incompleted forms
+	 *
+	 * We consider a file expired if it's been sitting in the tmp dir for 3 or more hours.
+ 	 *
+	 * @todo perhaps move to FormBuilderMain, as this may be applicable to more than just this Inputfield.
+	 *
+	 */
+	protected function garbageCollection() {
+		$time = time();
+		$expired = 3600 * 3; // 3 hours
+		foreach(new DirectoryIterator(wire('forms')->getFilesPath(true)) as $file) {	
+			if($file->isDot() || $file->isDir() || !$file->isFile()) continue;
+			if($time - $file->getMTime() > $expired) {
+				@unlink($file->getPathname());
+			}
+		}
+	}
+
+	/**
+	 * Inputfield configuration settings
+	 *
+	 */
+	public function ___getConfigInputfields() {
+
+		$inputfields = parent::___getConfigInputfields();
+
+		$f = $this->modules->get('InputfieldTextarea');
+		$f->attr('name', 'extensions');
+		$f->attr('value', $this->extensions);
+		$f->attr('rows', 3);
+		$f->label = $this->_('Valid file extensions');
+		$f->description = $this->_('Enter all file extensions allowed by this upload field. Separate each extension by a space. No periods or commas.');
+		$inputfields->append($f);
+
+		$f = $this->modules->get('InputfieldInteger');
+		$f->attr('name', 'maxFiles');
+		$f->attr('value', (int) $this->maxFiles);
+		$f->attr('size', 4);
+		$f->label = $this->_('Number of file inputs');
+		$f->description = $this->_('Must be 1 or greater');
+		$inputfields->append($f);
+
+		$f = $this->modules->get('InputfieldInteger');
+		$f->attr('name', 'maxFileSize');
+		$f->attr('value', (int) $this->maxFileSize);
+		$f->attr('size', 15);
+		$f->label = $this->_('Max file size (per file) in bytes');
+		$f->notes = $this->_('Examples:') . ' ' . 
+			$this->_('256000=250 KB, 512000=500 KB, 1048576=1 MB, 5242880=5 MB, 10485760=10 MB');
+		$inputfields->append($f);
+
+		return $inputfields;
+	}
+
+
+}

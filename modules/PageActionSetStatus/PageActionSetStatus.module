@@ -1,0 +1,84 @@
+<?php
+
+/**
+ * Action that adds or removes a status from a page
+ *
+ */ 
+
+class PageActionSetStatus extends PageAction implements Module {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Page Action: Set Status', 
+			'summary' => 'Action that adds or removes a status from a page.', 
+			'version' => 1, 
+			'author' => 'Ryan Cramer', 
+			'permission' => 'page-action-set-status', 
+			'permissions' => array('page-action-set-status' => 'Page Action: Set Status')
+			); 
+	}
+
+	protected $statusLabels = array();
+
+	public function __construct() {
+		$this->set('set_status', 0);
+		
+		$this->statusLabels = array(
+			(Page::statusHidden) => $this->_('Hidden'), 
+			(Page::statusHidden * -1) => $this->_('Not Hidden'),  
+			(Page::statusLocked) => $this->_('Locked'), 
+			(Page::statusLocked * -1) => $this->_('Unlocked'), 
+			(Page::statusUnpublished * -1) => $this->_('Published'), 
+			(Page::statusUnpublished) => $this->_('Unpublished'), 
+			(Page::statusTrash) => $this->_('Trash')
+			);
+
+	}
+
+	protected function ___action($item) {
+
+		$status = $this->set_status; 
+		if(!isset($this->statusLabels[$status])) return false;
+		$label = $this->statusLabels[$status]; 
+		$success = false;
+
+		if($status < 0) {
+			// remove a status
+			$status = abs($status); 
+			if($item->is($status)) {
+				$item->removeStatus($status); 
+				$success = true; 
+			}
+		} else {
+			// add a status
+			if(!$item->is($status)) {
+				$item->addStatus($status); 
+				$success = true; 
+			}
+		}
+
+		return $success; 	
+	}
+
+	public function ___getConfigInputfields() {
+
+		$fieldset = parent::___getConfigInputfields();
+		$fieldset->label = $this->_('Set Status'); 
+
+		$select = $this->wire('modules')->get('InputfieldSelect'); 
+		$select->attr('name', 'set_status'); 
+		$select->attr('value', $this->set_status); 
+		$select->label = $this->_('Status'); 
+
+		foreach($this->statusLabels as $status => $label) {
+			$select->addOption($status, $label); 
+		}
+
+		$fieldset->add($select); 
+
+		return $fieldset; 
+	}
+
+
+}
+

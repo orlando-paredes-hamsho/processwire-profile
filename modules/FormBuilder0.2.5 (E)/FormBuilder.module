@@ -1,0 +1,662 @@
+<?php
+
+/**
+ * ProcessWire Form Builder
+ *
+ * Provides the capability to build, edit and embed forms on your ProcessWire
+ * powered site. This particular module is a bridge to the Form Builder library
+ * found in FormBuilderMain.php, but also serves as the $forms API variable
+ * and handles embed options A and B via hooks. 
+ *
+ * Copyright (C) 2015 by Ryan Cramer Design, LLC
+ * 
+ * PLEASE DO NOT DISTRIBUTE
+ *
+ * @todo support non-.php extensions (https://processwire.com/talk/topic/7866-request-support-for-custom-template-extensions/)
+ * 
+ */
+
+/**
+ * FormBuilder represents the $forms API variable
+ *
+ */
+
+class FormBuilder extends WireData implements Module, ConfigurableModule, IteratorAggregate, Countable {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Form Builder', 
+			'summary' => 'Create or edit forms and manage submitted entries.',
+			'version' => 25, 
+			'autoload' => true,
+			'singular' => true,
+			'installs' => array('ProcessFormBuilder', 'InputfieldFormBuilderFile'),
+			);
+	}
+	
+	const requireTemplateVersion = 2;
+	
+	/**
+	 * form-builder.php template file version
+	 *
+	 * @var int
+	 *
+	 */
+	protected $templateVersion = 0;
+
+	/**
+	 * Instance of FormBuilderMain, serves as $forms API variable
+	 *
+	 */
+	protected $forms = null;
+
+	/**
+	 * Construct the Form Builder, include required classes and set default config vars
+	 *
+	 */
+	public function __construct() {
+
+		require_once(dirname(__FILE__) . '/FormBuilderMain.php'); 
+
+		Wire::setFuel('forms', $this); 
+
+		// default config variables
+		$this->set('embedTag', FormBuilderMain::name);
+		$this->set('embedFields', array());
+		$this->set('licenseKey', '');
+		$this->set('csvDelimiter', ',');
+		$this->set('useRoles', 0);
+		$this->set('filesPath', wire('config')->paths->cache . FormBuilderMain::name . '/'); // default filesPath
+	}
+
+	/**
+	 * Placeholder function for FormBuilderMain variable to ensure it's only instantiated when needed
+	 *
+	 * @return FormBuilderMain
+	 *
+	 */
+	protected function forms() {
+		if(is_null($this->forms)) $this->forms = new FormBuilderMain($this->wire('database'), 
+			$this->filesPath, 
+			$this->wire('config'));
+		return $this->forms; 
+	}
+
+	/**
+	 * Init for Module interface
+	 *
+	 */
+	public function init() { }
+
+	/**
+	 * Establish hooks where appropriate
+	 *
+	 */
+	public function ready() {
+		$page = wire('page'); 
+		if($page->template == 'admin') return;
+		$config = wire('config');
+		if(count($this->embedFields)) $this->addHookAfter('FieldtypeTextarea::formatValue', $this, 'hookFormatValue'); 
+	}
+
+	/**
+	 * Hook into FieldtypeTextarea::formatValue where we do search/replace on form-builder embed tags
+	 *
+	 */
+	public function hookFormatValue(HookEvent $event) {
+		$field = $event->arguments[1];
+		if(!in_array($field->id, $this->embedFields)) return;
+		$value = $event->return;
+		$embedTag = $this->embedTag;
+		if(strpos($value, ">$embedTag/") === false) return;
+		if(!preg_match_all('!<([^>]+)>' . $embedTag . '/([-_a-zA-z0-9]+)\s*</\\1>!', $value, $matches)) return;
+		foreach($matches[0] as $key => $tag) {
+			$iframe = $this->embed($matches[2][$key]);
+			$value = str_replace($tag, $iframe, $value);               
+		}
+		$event->return = $value;
+	}
+
+	/**
+	 * Given a form ID or name, returns true if is used by a form, false if not
+	 *
+	 * @param int|string $id May be form ID or form name
+	 * @return bool
+	 *
+	 */
+	public function isForm($id) {
+		return $this->forms()->isForm($id);
+	}
+
+	/**
+	 * Retrieve a form by $id or $name
+	 *
+	 * @param int|string May be form ID or form name
+	 * @return FormBuilderForm|null Returns $form on success or NULL on failure to load
+	 *
+	 */
+	public function ___load($id) {
+		return $this->forms()->load($id);
+	}
+
+	/**
+	 * Save the given $form 
+	 *
+	 * @param FormBuilderForm $form
+	 * @return bool Returns true on success, false on failure
+	 *
+	 */
+	public function ___save(FormBuilderForm $form) {
+		return $this->forms()->save($form); 
+	}
+
+	/**
+	 * Add a new form with the given name
+	 *
+	 * @param string $formName Using characters: -_a-z0-9
+	 * @return FormBuilderForm
+	 *
+	 */
+	public function ___addNew($formName) {
+		$formName = $this->sanitizer->pageName($formName, Sanitizer::translate); 
+		return $this->forms()->addNew($formName); 
+	}
+
+	/**
+	 * Delete the given $form 
+	 *
+	 * @param int|string|FormBuilderForm $id May be a $form instance, an ID or a name
+	 * @return bool Returns true on success, false on failure
+	 *
+	 */
+	public function ___delete($id) {
+		return $this->forms()->delete($id); 
+	}
+
+	/**
+	 * Retrieve a config variable or a form, depending on the key
+	 *
+	 */
+	public function get($key) {
+		$value = parent::get($key);
+		if($key != 'name' && is_null($value)) if($this->isForm($key)) $value = $this->load($key);
+		return $value;
+	}
+
+	/**
+	 * Make this module iterable, as required by the IteratorAggregate interface
+	 *
+	 */
+	public function getIterator() {
+		return new ArrayObject($this->forms()->getFormNames()); 
+	}
+
+	/**
+	 * Get the embed code for a given form
+	 *
+	 * @param int|string|FormBuilderForm Form ID, name or instance to embed
+	 * @param array $vars Optional array of variables to send as GET vars to the embedded form. When used, overrides use of actual GET variables.
+	 * @return string Embed code or error message
+	 *
+	 */
+	public function embed($formName, array $vars = null) {
+
+		$out = "\n<!-- " . FormBuilderMain::RCD . " -->\n"; 
+	
+		if($formName instanceof FormBuilderForm) {
+			$form = $formName; 
+			$formName = $formName->name;
+		} else {
+			$form = $this->load($formName); 
+			if($form) $formName = $form->name; 
+				else $formName = '';
+		}
+
+		if($formName) {
+			$page = $this->pages->get("template=" . FormBuilderMain::name); 
+			// @todo needs to be updated to support url rather than just httpUrl (per villa-info.net)
+			$url = $page->httpUrl . strtolower($formName) . '/' . $this->embedQuerystring($form, $vars); 
+			$out .= str_replace(array('{url}', '{name}'), array($url, $formName), FormBuilderMain::embedCode); 
+		} else {
+			$out .= $this->_('Form not found');
+		}
+
+		return $out; 
+	}
+
+	/**
+	 * Get the queryString to use with the embed URL for the allowPreset (GET variables) option
+	 *
+	 * @param FormBuilderForm $form
+	 * @param array $vars Optional array of varibles you want in the query string, overrides use of GET variables.
+	 * @return string queryString
+	 *
+	 */
+	protected function embedQuerystring($form, array $vars = null) {
+
+		$queryString = '';
+		$maxlength = 1024*32; // max length for a query string
+
+		if(is_null($vars)) {
+			if(!$form->allowPreset || !count($this->input->get)) return $queryString;
+			$vars = $this->input->get; 
+			$allowUnknown = false;
+		} else {
+			// we allow any var name when manually specified
+			$allowUnknown = true; 	
+		}
+
+		foreach($vars as $key => $value) {
+
+			$name = strtolower($this->sanitizer->fieldName($key));
+			if(!$allowUnknown) {
+				$f = $form->find($name); 
+				if(!$f) continue; 
+			}
+	
+			if(is_object($value)) {
+				if($value instanceof PageArray) {
+					$value = $value->explode('id'); 
+				} else {
+					$value = (string) $value; 
+				}
+			}
+
+			if(is_array($value)) {
+				foreach($value as $k => $v) {
+					if(is_array($v)) continue; 
+					if(is_int($k)) $queryString .= $name . '[]=';
+						else $queryString .= $name . '[' . $this->sanitizer->fieldName($k) . ']=';
+					$queryString .= urlencode($v) . '&';
+				}
+			} else {
+				$queryString .= $name . '=' . urlencode($value) . '&';
+			}
+		}
+
+		$len = strlen($queryString);
+
+		if($len) {
+			if($len > $maxlength) {
+				// query string too long, abort
+				$queryString = '';
+			} else {
+				// entity encode and finish it off
+				$queryString = '?' . htmlentities(rtrim($queryString, '&'), ENT_QUOTES, 'UTF-8');
+			}
+		}
+
+
+		return $queryString; 
+	}
+
+	/**
+	 * Return number of forms here, per Countable interface
+	 *
+	 */
+	public function count() {
+		return $this->forms()->count();
+	}
+
+	/**
+	 * Return the number of entries for the given form ID
+	 *
+	 */
+	public function countEntries($id) {
+		return $this->forms()->countEntries($id);
+	}
+
+	/**
+	 * Return the JSON schema for the given form ID
+	 *
+	 */
+	public function exportJSON($id) {
+		return $this->forms()->exportJSON($id);
+	}
+
+	/**
+	 * Import to form ID the given JSON schema
+	 *
+	 * @param int $id
+	 * @param string $json
+	 * @return bool 
+	 *
+	 */
+	public function importJSON($id, $json) {
+		return $this->forms()->importJSON($id, $json);
+	}
+
+	/**
+	 * Returns whether or not the given $name may be used or a form or field name
+	 *
+	 * @param string $name
+	 * @return bool
+	 *
+	 */
+	public function isReservedName($name) {
+		return $this->forms()->isReservedName($name);
+	}
+
+	/**
+	 * Return path that FormBuilder uses for storing files
+	 *
+	 * @param bool $tmp
+	 * @return string
+	 *
+	 */
+	public function getFilesPath($tmp = false) {
+		return $this->forms()->getFilesPath($tmp);
+	}
+
+	/**
+	 * Generate a transportable key for the given filename within a form and entry
+	 *
+	 * @param int $formID
+	 * @param int $entryID Or specify 0 if not yet an active entry
+	 * @param string $filename
+	 * @return bool|string Returns false on failure or string on success
+	 *
+	 */
+	public function getFileKey($formID, $entryID, $filename) {
+		return $this->forms()->getFileKey($formID, $entryID, $filename);
+	}
+	
+	/**
+	 * Retrieve a filename from a transportable key
+	 *
+	 * @param string $key Must be in the format given by getFileKey
+	 * @return bool|string Returns boolean false on failure or full path+filename on success
+	 *
+	 */
+	public function getFileFromKey($key) {
+		return $this->forms()->getFileFromKey($key);
+	}
+
+	/**
+	 * Return a URL where the given file can be viewed
+	 *
+	 * @param int $formID
+	 * @param int $entryID Or specify 0 if not yet an active entry
+	 * @param string $filename
+	 * @return bool|string Returns false on failure or URL on success
+	 *
+	 */
+	public function getFileURL($formID, $entryID, $filename) {
+		return $this->forms()->getFileURL($formID, $entryID, $filename);
+	}
+
+	/**
+	 * Outputs the given file, must be located under getFilesPath()
+	 *
+	 * @param string $key Key representing the file to view (generated by getFileKey) 
+	 * @return bool Returns false on failure. On success, it exists program execution.
+	 * @throws Wire404Exception
+	 *
+	 */
+	public function viewFile($key) {
+		if(!$this->forms()->viewFile($key)) throw new Wire404Exception();
+	}
+
+	/**
+	 * Check if the current user has the permission name for the given $form
+	 *
+	 * @param string $name Name of permission
+	 * @param string|FormBuilderForm|id Form name, ID or object
+	 * @return bool
+	 * @throws FormBuilderException
+	 *
+	 */
+	public function hasPermission($name, $form) {
+
+		$user = wire('user');
+
+		if($user->isSuperuser()) return true; 
+		if(!$this->useRoles && $name == 'form-submit') return true; 
+		if(!$this->useRoles && $user->hasPermission('form-builder')) return true; 
+
+		if(is_object($form)) {
+			if(!$form instanceof FormBuilderForm) throw new FormBuilderException("Invalid form object sent to hasPermission");
+
+		} else {
+			$name = $form;
+			$form = $this->load($name);
+			if(!$form) throw new FormBuilderException("hasPermission - unknown form");
+		}
+ 
+		$roles = $form->roles;
+		$allowed = false;
+
+		// they are asking for a permission that is not form-specific
+		if(count($roles) && !isset($roles[$name])) return false; 
+
+		foreach($roles[$name] as $role) {
+			if($user->hasRole($role)) {
+				$allowed = true; 
+				break;
+			}
+		}
+
+		return $allowed; 	
+	}
+
+	/**
+	 * Retrieve alll themes or frameworks files
+	 * 
+	 * @param $for Specify 'themes' or 'frameworks'
+	 * @param bool $getDirs
+	 * @return array
+	 * 
+	 */
+	
+	public function getHelpers($for, $getDirs = true) {
+		return $this->forms()->getHelpers($for, $getDirs); 
+	}
+
+	/**
+	 * Return the path where themes are stored
+	 * 
+	 * If the dir /site/templates/FormBuilder/themes/ exists, it will use that. 
+	 * Otherwise it uses /site/modules/FormBuilder/themes/
+	 * 
+	 * @param string $theme Optionally specify the theme and it will be included in the path
+	 * @return string
+	 * 
+	 */
+	public function themesPath($theme = '') {
+		return $this->forms()->themesPath($theme);
+	}
+	
+	/**
+	 * Return the path where frameworks are stored
+	 *
+	 * If the dir /site/templates/FormBuilder/frameworks/ exists, it will use that.
+	 * Otherwise it uses /site/modules/FormBuilder/frameworks/
+	 *
+	 * @return string
+	 * @throws WireException
+	 *
+	 */
+	public function frameworksPath() {
+		return $this->forms()->frameworksPath();
+	}
+	
+	/**
+	 * Return the URL where themes are stored
+	 *
+	 * If the dir /site/templates/FormBuilder/themes/ exists, it will use that.
+	 * Otherwise it uses /site/modules/FormBuilder/themes/
+	 *
+	 * @param string $theme Optionally specify the theme and it will be included in the url 
+	 * @return string
+	 *
+	 */
+	public function themesURL($theme = '') {
+		return $this->forms()->themesURL($theme);
+	}
+	
+	/**
+	 * Return the URL where frameworks are stored
+	 *
+	 * If the dir /site/templates/FormBuilder/frameworks/ exists, it will use that.
+	 * Otherwise it uses /site/modules/FormBuilder/frameworks/
+	 *
+	 * @return string
+	 *
+	 */
+	public function frameworksURL() {
+		return $this->forms()->frameworksURL();
+	}
+
+	/**
+	 * Get the framework used by the given $form
+	 * 
+	 * Also prepares the framework with it's config values populated
+	 * 
+	 * @param FormBuilderForm $form
+	 * @return FormBuilderFramework|null
+	 * 
+	 */
+	public function getFramework(FormBuilderForm $form) {
+		return $this->forms()->getFramework($form); 
+	}
+
+	/**
+	 * Returns whether the given license key is valid for the domain its running on
+	 *
+	 * @return bool
+	 *
+	 */
+	public function isValidLicense() {
+		return strlen($this->licenseKey) > 0; 
+		// return $this->forms()->isValidLicense($this->licenseKey);
+	}
+
+	/**
+	 * Render a form directly (embed method C)
+	 * 
+	 * @param $form
+	 * @param array $vars Optional associative array of variable names to pre-populated values 
+	 *
+	 * @return FormBuilderRender
+	 * @throws WireException
+	 * 
+	 */
+	public function ___render($form, $vars = array()) {
+		if(!$form instanceof FormBuilderForm) $form = $this->load($form); 
+		if(!$form) throw new WireException("Unable to locate requested form");
+		$this->loadHooksFile(); // in case this is called with embed method C
+		if(is_array($vars) && count($vars)) {
+			$processor = $form->processor();
+			$inputfields = $processor->getInputfieldsForm();
+			foreach($vars as $name => $value) {
+				$inputfield = $inputfields->getChildByName($name);
+				if(!$inputfield) continue;
+				$inputfield->attr('value', $value); 
+			}
+		}
+		$render = new FormBuilderRender($form); 
+		return $render; 
+	}
+
+	/**
+	 * Load form from URL (for embed method a or b)
+	 * 
+	 * This is intended to be called only by site/templates/form-builder.php
+	 * 
+	 * @param bool $render Specify true to render the FormBuilderRender object rather than FormBuilderForm
+	 * @return FormBuilderForm|FormBuilderRender
+	 * @throws Wire404Exception
+	 * 
+	 */
+	public function getFromURL($render = false) {
+		
+		$sanitizer = $this->wire('sanitizer');
+		$input = $this->wire('input');
+		$user = $this->wire('user');
+		
+		$this->loadHooksFile();
+
+		// if view file requested, delegate to that function
+		if($input->get('view_file')) $this->viewFile($input->get('view_file'));
+
+		// identify which form is being requested
+		// we don't allow loading forms by ID when user is not logged in,
+		// so that a curious person can't track down all the forms by incrementing the ID
+		$formName = $sanitizer->pageName($input->urlSegment1);
+		if(ctype_digit("$formName") && $user->isGuest()) return null;
+
+		if($formName) {
+			// load and render the form
+			$form = $this->load($formName);
+		} else {
+			// no form available
+			$form = null;
+		}
+
+		if(!$form) {
+			if($this->wire('page')->editable()) {
+				return "<h2>Unknown form</h2>";
+			} else {
+				throw new Wire404Exception();
+			}
+		}
+	
+		if($render) return $this->render($form, true);
+		return $form; 
+	}
+
+	public function loadHooksFile() {
+		static $loaded = false;
+		if($loaded) return;
+		// form-builder.inc is an optional include file you may create (in /site/templates/) if you want 
+		// to init custom hook functions specific to Form Builder
+		$hookFile = $this->wire('config')->paths->templates . 'form-builder.inc';
+		if(is_file($hookFile)) {
+			wireIncludeFile($hookFile);
+		}
+		$loaded = true;
+	}
+	
+	public function setTemplateVersion($version) {
+		$this->templateVersion = (int) $version; 
+	}
+	
+	public function getTemplateVersion() {
+		return $this->templateVersion; 
+	}
+
+	/**
+	 * Configure the form builder
+	 *
+	 */
+	public static function getModuleConfigInputfields(array $data) {
+		require(dirname(__FILE__) . '/FormBuilderConfig.php'); 
+		$c = new FormBuilderConfig($data);
+		return $c->getConfig();
+	}
+
+	/**
+	 * Install the module and create the tables
+	 *
+	 */
+	public function ___install() {
+		$this->forms()->_install(); // tables
+		require(dirname(__FILE__) . '/FormBuilderInstall.php'); 
+		$installer = new FormBuilderInstall();
+		$installer->install();
+	}
+
+	/**
+	 * Uninstall the module
+	 *
+	 */
+	public function ___uninstall() {
+		$this->forms()->_uninstall(); // tables
+		require(dirname(__FILE__) . '/FormBuilderInstall.php'); 
+		$installer = new FormBuilderInstall();
+		$installer->uninstall();
+	}
+
+}
+
+

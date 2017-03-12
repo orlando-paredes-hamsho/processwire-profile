@@ -1,0 +1,165 @@
+/**
+ * InputfieldForm CSS file for FormBuilder with non-Legacy frameworks
+ *
+ */
+.InputfieldForm textarea,
+.InputfieldForm .InputfieldMaxWidth {
+  width: 100%; }
+.InputfieldForm input[type="text"],
+.InputfieldForm input[type="password"],
+.InputfieldForm input[type="date"],
+.InputfieldForm input[type="datetime"],
+.InputfieldForm input[type="datetime-local"],
+.InputfieldForm input[type="month"],
+.InputfieldForm input[type="week"],
+.InputfieldForm input[type="email"],
+.InputfieldForm input[type="number"],
+.InputfieldForm input[type="search"],
+.InputfieldForm input[type="tel"],
+.InputfieldForm input[type="time"],
+.InputfieldForm input[type="url"],
+.InputfieldForm input[type="color"],
+.InputfieldForm select,
+.InputfieldForm textarea {
+  margin: 0; }
+.InputfieldForm, .InputfieldForm *, .InputfieldForm *:before, .InputfieldForm *:after {
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box; }
+.InputfieldForm .Inputfields {
+  height: auto;
+  list-style: none;
+  padding: 0; }
+.InputfieldForm .Inputfield {
+  list-style: none;
+  display: block; }
+.InputfieldForm .Inputfield {
+  clear: both;
+  margin: 0 0 1.5em 0; }
+  .InputfieldForm .Inputfield:not(fieldset) {
+    padding: 0; }
+.InputfieldForm fieldset,
+.InputfieldForm .InputfieldFieldset {
+  margin: 0 0 1.5em 0;
+  padding-bottom: 0; }
+.InputfieldForm .InputfieldStateCollapsed .InputfieldHeader {
+  opacity: 0.5; }
+  .InputfieldForm .InputfieldStateCollapsed .InputfieldHeader:after {
+    content: " \2026"; }
+.InputfieldForm .InputfieldStateCollapsed .InputfieldContent {
+  display: none; }
+.InputfieldForm .InputfieldHidden {
+  display: none; }
+.InputfieldForm .description,
+.InputfieldForm .notes {
+  margin: 0.25em 0; }
+.InputfieldForm .Inputfield:not(.InputfieldStateCollapsed) > .InputfieldHeaderHidden > span {
+  display: none; }
+
+.InputfieldFormWidths {
+  /** the following have to do with column widths **********************************************/ }
+  .InputfieldFormWidths input[type=text],
+  .InputfieldFormWidths input[type=email],
+  .InputfieldFormWidths input[type=url],
+  .InputfieldFormWidths input[type=number],
+  .InputfieldFormWidths select,
+  .InputfieldFormWidths textarea {
+    width: 100%; }
+  .InputfieldFormWidths .InputfieldColumnWidth {
+    /* an Inputfield that has a percentage width assigned to it */
+    float: left;
+    clear: none;
+    margin-left: 0;
+    margin-right: 0; }
+    .InputfieldFormWidths .InputfieldColumnWidth > .InputfieldHeader,
+    .InputfieldFormWidths .InputfieldColumnWidth > .InputfieldContent {
+      padding-left: 1.5em; }
+  .InputfieldFormWidths .InputfieldColumnWidthFirst,
+  .InputfieldFormWidths .InputfieldColumnWidth + .InputfieldSubmit,
+  .InputfieldFormWidths .InputfieldColumnWidthFirstTmp,
+  .InputfieldFormWidths .InputfieldColumnWidthFirst.InputfieldStateHidden + .Inputfield {
+    /* first Inputfield with a percent width... */
+    /* ...or the last percentage-width Inputifeld before the submit button */
+    clear: both; }
+    .InputfieldFormWidths .InputfieldColumnWidthFirst > .InputfieldHeader,
+    .InputfieldFormWidths .InputfieldColumnWidthFirst > .InputfieldContent,
+    .InputfieldFormWidths .InputfieldColumnWidth + .InputfieldSubmit > .InputfieldHeader,
+    .InputfieldFormWidths .InputfieldColumnWidth + .InputfieldSubmit > .InputfieldContent,
+    .InputfieldFormWidths .InputfieldColumnWidthFirstTmp > .InputfieldHeader,
+    .InputfieldFormWidths .InputfieldColumnWidthFirstTmp > .InputfieldContent,
+    .InputfieldFormWidths .InputfieldColumnWidthFirst.InputfieldStateHidden + .Inputfield > .InputfieldHeader,
+    .InputfieldFormWidths .InputfieldColumnWidthFirst.InputfieldStateHidden + .Inputfield > .InputfieldContent {
+      padding-left: 0; }
+  .InputfieldFormWidths .description {
+    margin: 0.25em 0; }
+  .InputfieldFormWidths .notes {
+    margin: 0.25em 0; }
+
+/*** state toggles *******************************************************/
+.InputfieldStateToggle {
+  cursor: pointer; }
+  .InputfieldStateToggle i.toggle-icon {
+    /* the open/close icon that goes with most Inputfields */
+    float: right;
+    padding-right: 0.25em; }
+  .InputfieldStateToggle i.toggle-icon {
+    padding-right: 0.5em;
+    line-height: 1.7em; }
+  .InputfieldStateToggle i + i {
+    margin-right: 0.5em;
+    margin-left: 0; }
+
+/*** misc ******************************************************************/
+.InputfieldStateRequired > .InputfieldHeader:first-child:after {
+  /* Required state: Add asterisk to indicate field is required */
+  content: '*';
+  margin-left: 0.25em;
+  color: red; }
+
+.FormBuilderFrameworkLegacy .Inputfields > .Inputfield > .InputfieldContent:before,
+.FormBuilderFrameworkLegacy .Inputfields > .Inputfield > .InputfieldContent:after, .FormBuilderFrameworkLegacy:after,
+.FormBuilderFrameworkDefault .Inputfields > .Inputfield > .InputfieldContent:before,
+.FormBuilderFrameworkDefault .Inputfields > .Inputfield > .InputfieldContent:after,
+.FormBuilderFrameworkDefault:after {
+  content: " ";
+  display: table; }
+.FormBuilderFrameworkLegacy .Inputfields > .Inputfield > .InputfieldContent:after, .FormBuilderFrameworkLegacy:after,
+.FormBuilderFrameworkDefault .Inputfields > .Inputfield > .InputfieldContent:after,
+.FormBuilderFrameworkDefault:after {
+  clear: both; }
+
+.InputfieldSelect ul,
+.InputfieldRadios ul,
+.InputfieldCheckboxes ul {
+  margin: 0; }
+  .InputfieldSelect ul li,
+  .InputfieldRadios ul li,
+  .InputfieldCheckboxes ul li {
+    margin: 0; }
+
+#wrap_Inputfield- {
+  display: none; }
+
+/****************************************************************************
+ * Render Value Mode 
+ *
+ * Used when only values are being rendered in the form (no inputs)
+ *
+ */
+.InputfieldRenderValueMode .InputfieldSelect li,
+.InputfieldRenderValueMode .InputfieldRadios li,
+.InputfieldRenderValueMode .InputfieldCheckboxes li {
+  margin: 0; }
+.InputfieldRenderValueMode .InputfieldSubmit,
+.InputfieldRenderValueMode .InputfieldButton {
+  display: none; }
+
+.pw-no-select {
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+  /* prevent selection of this element */ }
+
+/*# sourceMappingURL=FormBuilder.css.map */

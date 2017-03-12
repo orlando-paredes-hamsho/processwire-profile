@@ -1,0 +1,120 @@
+ProcessWire Form Builder Changelog
+
+Update #25 beta - 2015/03/20
+
+- Add support for output using CSS frameworks: Foundation, Uikit and Bootstrap
+- Add support for Default admin and Reno admin themes/frameworks
+- Add support for custom defined responsive breakpoint
+- Make new API for embed method C, making it a lot simpler to use
+
+Update #24 beta - 2014/10/01
+
+- Various updates to take advantage of ProcessWire 2.5 features
+- Add new external themes directory option: /site/templates/FormBuilder/themes/
+- Fully convert Form Builder to use PDO (previous versions still used some mysqli)
+- Add 'compare' option to entries exported as pages to compare existing pages w/entry.
+- Various other minor bug fixes and additions
+- This version of Form Builder requires ProcessWire 2.4 or newer
+
+Update #23 beta - early 2014
+
+- Several new hooks added to FormBuilderProcessor
+- Add new themes: jmetro, aristo, delta
+- Various minor bug fixes
+
+Update #22 - 2013/06/05
+
+- This version is designed to work with ProcessWire 2.3 dev (PDO) and newer.
+  Note that previous versions of FormBuilder will not work with 2.3 dev (PDO).
+- Bugfix to the auto-responder custom text which didn't work unless you had
+  at least one [field-name] variable present. 
+
+Update #21 - 2013/04/02
+
+- Added multi-language support for field label, description and notes. 
+- Added multi-language support for form success and error messages and auto responder text. 
+- Autoresponder body text now configurable from form editor.
+- Autoresponder body text accepts variables in [brackets], example: [first_name]
+- Transparent background fixes thanks to MadeMyDay.
+
+Update #20 - 2012/02/05
+
+- Various minor bugfixes and optimizations
+- Add new checkbox on Settings tab enabling you to disable session tracking and
+  CSRF protection. This is useful if you want to cache your forms with ProCache
+  or if you want to send form submissions to a 3rd party script. 
+- Optimizations and improvements to the 'plain2' theme
+
+Update #19 - 2012/12/06
+
+- Fix bug with file uploads that prevented them from working when the files field
+  was placed in a Fieldset. Also made the mail() function recognize the $config
+  variable: $config->phpMailAdditionalParameters, where you may specify additional
+  parameters to FormBuilder's usage of PHP's mail() function, if necessary. This
+  would be set from your /site/config.php. 
+
+Update #18 - 2012/11/22
+
+- Add support for form-level access control. To enable, check the Access Control box
+  on your Modules > Form Builder module config screen. This update also installs a
+  permission called form-builder-add, which is the permission you would assign to 
+  roles you want to be allowed to add new forms. 
+
+Update #17 - 2012/11/12
+
+- Addition of File Inputfield, specific to use with Form Builder. Various other minor
+  bugfixes and tweaks were made as well. 
+
+Update #16 - 2012/10/10
+=======================
+
+- Add new option that lets the form be preset with values from GET variables. To enable
+  check the box under the 'settings' tab of your form. Once you do that, any GET variables
+  present that carry the same name as a form field will be populated to the form. This 
+  works with all embed methods and FormBuilder takes care of delivering the data to the
+  embed methods that use iframes.
+
+Update #15 - 2012/10/05
+=======================
+
+- Add new auto-responder feature
+
+Update #14 - 2012/10/03
+=======================
+
+- Add new form submission action: Save to ProcessWire Pages
+- Add new 'Actions' and 'Output' tabs in the form admin screen
+- Add new CSV delimiter option to the Form Builder config
+- Various minor bug fixes 
+
+Update #13 - 2012/09/23
+=======================
+
+- Add support for a 'notes' field that appears below the input. This is essentially the same 
+  as the 'description' field, except that it appears below, rather than above, the input. 
+  You'll see this 'notes' field used throughout ProcessWire already, so this just lets Form 
+  Builder use this existing feature.
+
+- Updated the 'Markup' inputfield (InputfieldMarkup) to be usable with Form Builder. To take 
+  advantage of this, you'll have to grab the latest ProcessWire core (2.2.9). If you don't 
+  have 'Markup' listed as an input type when creating a field in Form Builder, then go to the 
+  module settings and add it to the list of allowed inputs.
+
+Update #12 - 2012/09/20
+=======================
+
+- Correct issue with possible field name/form setting clashes (i.e. naming a field 'honeypot')
+
+Update #11 - 2012/09/20
+=======================
+
+- Correct issues with single Checkbox fields.
+- Updated required ProcessWire version to 2.2.8
+- Removed redundant error messages from the top of a failed form submission.
+
+Update #10 - 2012/09/18
+=======================
+	
+- First release of Form Builder
+
+

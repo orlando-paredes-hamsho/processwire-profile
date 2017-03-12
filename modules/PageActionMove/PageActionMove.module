@@ -1,0 +1,54 @@
+<?php
+
+/**
+ * ListerPro Page action that moves pages
+ *
+ */ 
+
+class PageActionMove extends PageAction implements Module {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => __('Page Action: Move', __FILE__), 
+			'summary' => __('Action that moves a page.'), 
+			'version' => 1, 
+			'author' => 'Ryan Cramer', 
+			'permission' => 'page-action-move', 
+			'permissions' => array('page-action-move' => 'Page Action: Move')
+			); 
+	}
+
+	public function __construct() {
+		$this->set('move_to_parent', 0);
+	}
+
+	protected function ___action($item) {
+
+		$parentID = (int) $this->move_to_parent; 
+		if(!$parentID) return false;
+		$parent = $this->wire('pages')->get($parentID); 
+		if(!$parent->id) return false; 
+		if(!$item->moveable($parent)) return false; 
+		$item->parent = $parent; 
+		
+		return true; 
+	}
+
+	public function ___getConfigInputfields() {
+
+		$info = self::getModuleInfo();
+
+		$fieldset = parent::___getConfigInputfields();
+		$fieldset->label = $info['title']; 
+
+		$f = $this->wire('modules')->get('InputfieldPageListSelect'); 
+		$f->attr('name', 'move_to_parent'); 
+		$f->label = $this->_('Select New Parent Page'); 
+		$fieldset->add($f); 
+
+		return $fieldset; 
+	}
+
+
+}
+

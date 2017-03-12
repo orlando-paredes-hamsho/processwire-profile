@@ -1,0 +1,109 @@
+#content {
+	/* if 100%, there is some overlap at the right edge */
+	width: 99%; 
+}
+
+form.InputfieldForm {
+	/* in webkit there is slight truncation of radio buttons and checkboxes if we don't do this */
+	margin-left: 1px; 
+	position: relative;
+	left:
+}
+
+.Inputfields .Inputfield {
+	margin-bottom: 1em;
+}
+
+.Inputfields .Inputfield + .Inputfield {
+	margin-top: 1em;
+}
+
+.Inputfields .ui-widget-header {
+	border: none;
+	background: none; 
+	padding-top: 0; 
+	padding-left: 0;
+	padding-bottom: 0;
+	margin-top: 0; 
+	margin-bottom: 0;
+}
+
+#content .Inputfields .ui-widget-content, 
+#content .Inputfield > .ui-widget-content {
+	border: none;
+	background: none;
+	padding-top: 0; 
+	padding-left: 0;
+	padding-bottom: 0;
+	margin-top: 0; 
+	margin-bottom: 0; 
+}
+
+#content .InputfieldStateCollapsed label.ui-widget-header {
+	border-bottom: 1px dotted #ccc; 
+}
+
+#content .InputfieldFieldset > .ui-widget-content {
+	padding: 1em; 
+	border: 1px solid #ddd; 
+}
+#content .InputfieldFieldset > label.ui-widget-header {
+	/*
+	font-size: 1.4em; 
+	*/
+	margin: 2em 0 0.25em 0;
+}
+
+#content .InputfieldFieldset .InputfieldFieldset > label.ui-widget-header {
+	/*
+	font-size: 1.2em; 
+	*/
+	margin-top: 0; 
+	padding-top: 1em; 
+}
+
+.InputfieldStateRequired > label.ui-widget-header:first-child:after {
+	color: red; 
+        content: ' *';
+}
+
+#content .Inputfields .ui-widget-content p.notes,
+#content .Inputfields .ui-widget-content p.description {
+	margin-bottom: 0.25em;
+	margin-top: 0;
+}
+
+#content .InputfieldForm label,
+#content .InputfieldForm p.description {
+	/*
+	font-size: 0.916666666666667em; 
+	*/
+}
+
+#content .InputfieldForm select {
+	width: 100%; 
+}
+
+#content .InputfieldForm button.ui-button {
+	/*
+	background: ButtonFace;
+	color: ButtonText;
+	appearance: push-button;
+	*/
+	/*
+	font-size: 1.2em;
+	*/
+}
+
+#content .InputfieldForm button.ui-button:hover {
+	/*
+	color: ButtonFace;
+	background: ButtonText;
+	*/
+}
+
+#content .InputfieldForm .InputfieldFieldset > .ui-widget-content > p.description {
+	/*
+	font-size: 1.090909090909091em;
+	*/
+}

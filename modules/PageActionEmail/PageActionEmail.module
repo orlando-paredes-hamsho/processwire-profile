@@ -1,0 +1,113 @@
+<?php
+
+class PageActionEmail extends PageAction implements Module {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Send E-Mail',
+			'summary' => 'This action lets you email people.',
+			'version' => 1,
+			'permission' => 'page-action-send-email', 
+			'permissions' => array('page-action-send-email' => 'Page Action: Send Email'),
+			);
+	}
+
+	public function __construct() {
+		$this->set('emailTo', ''); 
+		$this->set('emailFrom', ''); 
+		$this->set('subject', '{title}'); 
+		$this->set('body', ''); 
+	}
+
+	/**
+	 * Given a string of email addresses OR field names (or both) convert fields to email addresses
+	 *
+	 * @param string $value Email string
+	 * @param Page $item 
+	 * @return string CSV string of all email addresses
+	 *
+	 */
+	protected function getEmails($value, Page $item, $limit = 0) {
+
+		$emails = explode(',', $value); 
+		$clean = array();
+		$n = 0;
+
+		foreach($emails as $key => $email) {
+
+			$email = strtolower(trim($email)); 	
+
+			if(strpos($email, '@')) {
+				// good, it's already an email ddress
+				$clean[] = $email;
+
+			} else if(strlen($email)) {
+				$email = $item->get($email); 
+				if(strpos($email, '@')) $clean[] = $email;
+			}
+
+			if($limit && ++$n >= $limit) break;
+		}
+
+		return implode(',', $clean); 
+	}
+
+	protected function populateVars($str, Page $item) {
+		return wirePopulateStringTags($str, $item, array('entityDecode' => true));
+	}
+
+	protected function ___action($item) {
+
+		$emailTo = $this->getEmails($this->emailTo, $item);
+		if(!$emailTo) return false;
+
+		$emailFrom = $this->getEmails($this->emailFrom, $item, 1); 
+		$subject = $this->populateVars($this->subject, $item); 	
+		$body = $this->populateVars($this->body, $item); 
+
+		$this->message(sprintf($this->_('Emailing %s'), $emailTo) . " - " . $subject); 
+
+		return wireMail($emailTo, $emailFrom, $subject, $body) > 0; 		
+	}
+
+	public function ___getConfigInputfields() {
+		$fieldset = parent::___getConfigInputfields();
+
+		$f = $this->wire('modules')->get('InputfieldText'); 
+		$f->attr('name', 'emailTo'); 
+		$f->attr('value', $this->emailTo); 
+		$f->label = $this->_('Email To'); 
+		$emailDescription = $this->_('Enter an email address OR enter the name of the field on a Page containing the email address (i.e. "email").'); 
+		$emailNotes = $this->_('To enter multiple email addresses, separate each with a comma.'); 
+		$f->description = $emailDescription;
+		$f->notes = $emailNotes; 
+		$f->columnWidth = 50; 
+		$fieldset->add($f); 
+
+		$f = $this->wire('modules')->get('InputfieldText'); 
+		$f->attr('name', 'emailFrom'); 
+		$f->attr('value', $this->emailFrom); 
+		$f->label = $this->_('Email From'); 
+		$f->description = $emailDescription;
+		$f->notes = $emailNotes; 
+		$f->columnWidth = 50; 
+		$fieldset->add($f); 
+
+		$f = $this->wire('modules')->get('InputfieldText'); 
+		$f->attr('name', 'subject'); 
+		$f->attr('value', $this->subject); 
+		$f->label = $this->_('Subject'); 
+		$bracketNotes = $this->_('You may use any field name in {brackets} to substitute values from a Page.'); 
+		$f->description = $bracketNotes; 
+		$fieldset->add($f); 
+
+		$f = $this->wire('modules')->get('InputfieldTextarea'); 
+		$f->attr('name', 'body'); 
+		$f->attr('value', $this->body); 
+		$f->label = $this->_('Body'); 
+		$f->description = $bracketNotes; 
+		$fieldset->add($f); 
+	
+		return $fieldset; 
+	}
+}

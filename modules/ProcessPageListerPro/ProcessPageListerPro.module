@@ -1,0 +1,416 @@
+<?php
+
+/**
+ * Page Lister Pro: Process
+ *     __    _      __           
+ *    / /   (_)____/ /____  _____
+ *   / /   / / ___/ __/ _ \/ ___/
+ *  / /___/ (__  ) /_/  __/ /    
+ * /_____/_/____/\__/\___/_/ PRO
+ *
+ * Provides an alternative listing view for pages using specific templates (Professional Version)
+ *
+ * This is a commercial module, please do not distribute. 
+ *
+ * ListerPro for ProcessWire
+ * Copyright 2014 by Ryan Cramer
+ * http://processwire.com/ListerPro/
+ *
+ */
+
+class ProcessPageListerPro extends ProcessPageLister implements ConfigurableModule {
+
+	/**
+	 * Instance of ProcessListerActions
+	 *
+	 */
+	protected $actions = null;
+
+	/**
+	 * Construct ListerPro
+	 *
+	 */
+	public function __construct() {
+
+		$url = $this->wire('config')->urls->ProcessPageLister; 
+		$this->wire('config')->styles->add($url . "ProcessPageLister.css"); 
+		$this->wire('config')->scripts->add($url . "ProcessPageLister.js"); 
+
+		parent::__construct(); 
+
+		// where all listers config data is stored
+		$this->set('settings', array()); 
+
+		// action class names that are allowed for this Lister
+		$this->set('allowActions', array());
+		$this->set('licenseKey', ''); 
+		$this->set('initSelector', ''); 
+
+		$dirname = dirname(__FILE__) . '/';
+		require_once($dirname . '/ListerProConfig.php'); 
+		require_once($dirname . '/ListerProActions.php'); 
+	}
+
+	/**
+	 * Initalize lister variables
+	 *
+	 */
+	public function init() {
+
+		$name = $this->page->name; 
+
+		$settings = $this->settings; 
+
+		if($settings && isset($settings[$name])) {
+			$settings = $settings[$name]; // convert to localized settings specific to this lister
+			$this->parent = empty($settings['parent']) || ((int) $settings['parent']) === 1 ? new NullPage() : $this->pages->get((int) $settings['parent']); 
+			if(isset($settings['defaultSort'])) $this->defaultSort = $settings['defaultSort']; 
+			if(isset($settings['columns'])) $this->columns = $settings['columns']; 
+			if(isset($settings['initSelector'])) $this->initSelector = $settings['initSelector']; 
+			if(isset($settings['defaultSelector'])) $this->defaultSelector = $settings['defaultSelector']; 
+			if(isset($settings['delimiters'])) $this->delimiters = $settings['delimiters']; 
+			if(isset($settings['allowActions'])) $this->allowActions = $settings['allowActions']; 
+			if(isset($settings['imageWidth'])) $this->imageWidth = (int) $settings['imageWidth'];
+			if(isset($settings['imageHeight'])) $this->imageHeight = (int) $settings['imageHeight'];
+			if(isset($settings['imageFirst'])) $this->imageFirst = $settings['imageFirst'];
+			if(isset($settings['viewMode'])) $this->viewMode = (int) $settings['viewMode'];
+			if(isset($settings['editMode'])) $this->editMode = (int) $settings['editMode'];
+			if(isset($settings['InputfieldSelectorSettings'])) $this->InputfieldSelectorSettings = $settings['InputfieldSelectorSettings'];
+
+		} else if($this->input->urlSegment1 == 'config') { 
+			// defaults for unconfigured lister
+			if($name != 'lister') $this->initSelector = 'template='; 
+			$this->columns = $this->defaultColumns;
+			$this->parent = new NullPage();
+
+		} else {
+			// send them to configure this lister
+			// $this->session->redirect($this->page->url . 'config/'); 
+		}
+
+		if($this->isValid()) $this->actions = new ListerProActions($this); 
+
+		parent::init();
+	}
+
+	/**
+	 * getModuleInfo interface for required permission
+	 *
+	 */
+	public static function hasListerPermission(array $data) {
+
+		$page = $data['page'];
+		$user = $data['user'];
+		$info = $data['info'];
+		$wire = $data['wire'];
+
+		$permission = $wire->permissions->get("page-lister-$page->name"); 
+		if(!$permission->id) $permission = 'page-lister';
+
+		return $user->hasPermission($permission); 
+	}
+
+	
+	/**
+	 * Get the InputfieldSelector instance for this Lister
+	 *
+	 * @return InputfieldSelector
+	 *
+	 */
+	public function getInputfieldSelector() {
+		$s = parent::getInputfieldSelector();
+		$s->allowSubfieldGroups = true; // we only support in ListerPro
+		$s->allowSubselectors = true; // we only support in ListerPro
+		if($this->allowSystem) {
+			$s->allowSystemCustomFields = true; 
+			$s->allowSystemTemplates = true; 
+		}
+		
+		if($this->InputfieldSelectorSettings) {
+			// populate user settings to InputfieldSelector
+			foreach(explode("\n", $this->InputfieldSelectorSettings) as $line) {
+				$line = trim($line); 
+				$pos = strpos($line, '='); 
+				if(!$pos) continue; 
+				$key = substr($line, 0, $pos); 
+				$value = substr($line, $pos+1); 
+				$s->$key = $value;
+			}
+		}
+		
+		return $s; 
+	}
+
+	public function renderExtras() {
+		$out = '';
+		if(count($this->actions)) $out .= $this->actions->render();
+		if($this->wire('user')->isSuperuser() && $this->isValid()) {
+			$out .= "<div id='ProcessListerConfigTab' title='" . $this->_x('Config', 'tab') . "' class='WireTab'></div>";
+		}
+		$out .= parent::renderExtras();	
+		return $out; 
+	}
+
+	/**
+	 * Find what parent templates are active with the current init selectors
+	 *
+	 * @return array
+ 	 *
+	 */
+	protected function findParentTemplates() {
+
+		static $cache = array();
+
+		// if a specific parent is defined, limit to that
+		if($this->parent && $this->parent->id) return array($this->parent->template); 
+
+		// if this method was previously called, return cached value
+		if(isset($cache[$this->initSelector])) return $cache[$this->initSelector]; 
+
+		$parentTemplates = array();
+		$pageTemplates = $this->getSelectorTemplates($this->initSelector, true); 
+		if(!count($pageTemplates)) {
+			$cache[$this->initSelector] = $parentTemplates;
+			return $parentTemplates; 
+		}
+		$allTemplates = $this->wire('templates');
+
+		// first determine parent templates from family 'parentTemplates' settings
+		foreach($pageTemplates as $key => $template) {
+			if(empty($template->parentTemplates)) continue;
+			foreach($template->parentTemplates as $id) {
+				$id = (int) $id; 
+				if(isset($parentTemplates[$id])) continue; 
+				$template = $allTemplates->get($id);
+				if($template) $parentTemplates[$id] = $template;
+			}
+			unset($pageTemplates[$key]); 	
+		}
+
+		// next determine parent templates from family 'childTemplates' settings
+		if(count($pageTemplates)) foreach($allTemplates as $template) {
+			if(empty($template->childTemplates)) continue; 		
+			foreach($pageTemplates as $key => $pageTemplate) {
+				if(!in_array($pageTemplate->id, $template->childTemplates)) continue; 
+				$parentTemplates[$template->id] = $template; 
+				unset($pageTemplates[$key]); 	
+			}
+		}
+
+		// if we have anything leftover, determine it from existing data in the DB
+		foreach($pageTemplates as $template) {
+
+			$sql = 	'SELECT parents.templates_id FROM pages ' . 
+				'JOIN pages AS parents ON parents.id=pages.parent_id ' . 
+				'WHERE pages.templates_id=:templateID ' . 
+				'AND pages.status<=:pageStatus ' . 
+				'AND parents.status<=:parentStatus ' . 
+				'GROUP BY parents.templates_id LIMIT 100';
+
+			$query = $this->wire('database')->prepare($sql); 
+			$query->bindValue(':templateID', $template->id, PDO::PARAM_INT); 
+			$query->bindValue(':pageStatus', Page::statusUnpublished, PDO::PARAM_INT); 
+			$query->bindValue(':parentStatus', Page::statusUnpublished, PDO::PARAM_INT); 
+			$query->execute();
+
+			while($row = $query->fetch(PDO::FETCH_NUM)) {
+				list($id) = $row; 
+				$id = (int) $id; 
+				if(isset($parentTemplates[$id])) continue; 
+				$template = $allTemplates->get($id); 
+				if($template) $parentTemplates[$id] = $template;
+			}
+		}
+
+		$cache[$this->initSelector] = $parentTemplates; 
+
+		return $parentTemplates; 
+	}
+
+	/**
+	 * Build the columns asmSelect
+	 *
+	 */
+	public function buildColumnsField() {
+
+		$fields = $this->template ? $this->template->fieldgroup : $this->wire('fields'); 
+
+		$f = parent::buildColumnsField();
+		if(!$this->isValid()) return $f; 
+
+		$nullPage = new NullPage();
+		$options2 = array();
+		$systemColumns = $this->getSystemColumns();
+
+		// specific to the parent.[subfield] properties
+		foreach($systemColumns as $name) {
+			$options2["parent.$name"] = "parent.$name";
+		}
+		foreach($this->findParentTemplates() as $template) {
+			foreach($template->fieldgroup as $field) {
+				$options2["parent.$field->name"] = "parent.$field->name"; 
+			}
+		}	
+	
+		// all other fields	
+		foreach($fields as $field) {
+
+			if(!$this->allowColumnField($field)) continue; 
+
+			$info = $field->type->getSelectorInfo($field); 
+
+			if(count($info['subfields'])) {
+				foreach($info['subfields'] as $name => $subinfo) {
+					$options2[] = "$field->name.$name";
+				}
+				$blankValue = $field->type->getBlankValue($nullPage, $field);
+				if($blankValue instanceof Page || $blankValue instanceof PageArray) {	
+					foreach($systemColumns as $name) {
+						$options2[] = "$field->name.$name";
+					}
+				}
+			}
+		}
+
+		sort($options2); 
+		foreach($options2 as $option) $f->addOption($option); 
+		$f->attr('value', $this->columns); 
+		return $f; 
+	}
+
+	/**
+	 * Execute Page Actions
+	 *
+	 */
+	public function ___executeActions() {
+		if(!$this->isValid()) return 'Product key required';
+		return $this->actions->execute(); 
+	}
+
+	/**
+	 * Execute individual Lister config
+	 *
+	 */
+	public function ___executeConfig() {
+		if(!$this->wire('user')->isSuperuser()) throw new WireException('This feature is only available to superuser.'); 
+		if(!$this->isValid()) return '';
+		$this->wire('breadcrumbs')->add(new Breadcrumb('../', $this->page->title)); 
+		$this->wire('processHeadline', $this->_('Configure Lister')); 
+		$listerConfig = new ListerProConfig($this); 
+		return $listerConfig->buildForm()->render();
+	}
+
+	public function isValid() { 
+		if(strpos($this->licenseKey, 'PWLP') === 0) return true; 
+		$this->error("Please provide a valid product key in the ListerPro module settings"); 
+		return false;
+	}
+
+	/**
+	 * ListerPro Module Configuration Screen
+	 *
+	 */
+	public static function getModuleConfigInputfields(array $data) {
+		$form = new InputfieldWrapper();
+		$f = wire('modules')->get('InputfieldText');
+		$f->attr('id+name', 'licenseKey');
+
+		$licenseKey = isset($data['licenseKey']) ? $data['licenseKey'] : '';
+
+		if(wire('input')->post->licenseKey && wire('input')->post->licenseKey != wire('session')->ListerLicenseKey) {
+			// validate 
+			$http = new WireHttp();
+			$license = wire('sanitizer')->text(wire('input')->post->licenseKey);
+			$data = array(
+				'action' => 'validate',
+				'license' => $license,
+				'host' => wire('config')->httpHost, 
+				'ip' => ip2long(wire('session')->getIP())
+				);
+			wire()->message(print_r($data, true)); 
+			$result = $http->post('http://processwire.com/validate-product/', $data); 
+
+			if($result === 'valid') {
+				$licenseKey = $license;
+				$f->notes = "Validated!";
+				wire()->message("ListerPro product key has been validated!");
+
+			} else {
+				$licenseKey = '';
+				$f->error("Unable to validate product key: $result");
+			}
+		}
+
+		if(empty($licenseKey)) wire('input')->post->__unset('licenseKey');
+
+		$f->attr('value', $licenseKey);
+		$f->required = true;
+		$f->label = "Product Key";
+		if($licenseKey) $f->label .= " - VALIDATED!";
+		$f->attr('value', $licenseKey);
+		$f->icon = $licenseKey ? 'check-square-o' : 'question-circle'; 
+		$f->description = "Paste in your ListerPro product support key.";
+		$f->notes = "If you did not purchase the ListerPro for this site, please [purchase a product key here](http://processwire.com/ListerPro/).";
+		$form->add($f);
+
+		wire('session')->set('ListerLicenseKey', $licenseKey);
+
+		return $form;
+	}
+
+	/**
+	 * Placeholder for the viewport iframe
+	 *
+	 * @param bool $exit If true, execution will stop after this method call.
+	 *
+	 */
+	public function executeViewport($exit = true) {
+		echo "<pre>
+    __    _      __           
+   / /   (_)____/ /____  _____
+  / /   / / ___/ __/ _ \/ ___/
+ / /___/ (__  ) /_/  __/ /    
+/_____/_/____/\__/\___/_/ PRO  
+		\n";
+		if($exit) exit; 
+	}
+
+	/**
+	 * Install ListerPro: Convert existing pages using Lister to use ListerPro
+	 *
+	 */
+	public function ___install() {
+
+		$data = $this->wire('modules')->getModuleConfigData('ProcessPageLister'); 
+		if(!empty($data)) $this->wire('modules')->saveModuleConfigData('ProcessPageListerPro', $data); 
+
+		$moduleID = $this->wire('modules')->getModuleID('ProcessPageLister'); 
+		if(!$moduleID) return;
+		$pages = $this->wire('pages')->find("template=admin, process=$moduleID, include=all"); 
+		foreach($pages as $page) {
+			$page->of(false); 
+			$page->process = $this; 
+			$page->save('process'); 
+			$this->message("Updated $page->path to use $this"); 
+		}
+	}
+
+	/**
+	 * Uninstall ListerPro: Convert pages using ListerPro back to use Lister
+	 *
+	 */
+	public function ___uninstall() {
+		$moduleID = $this->wire('modules')->getModuleID($this); 
+		if(!$moduleID) return;
+		$pages = $this->wire('pages')->find("template=admin, process=$moduleID, include=all"); 
+		foreach($pages as $page) {
+			$page->of(false); 
+			$page->process = 'ProcessPageLister';
+			$page->save('process'); 
+			$this->message("Reverted $page->path to use ProcessPageLister (rather than ProcessPageListerPro)."); 
+		}
+	}
+
+
+}
+

@@ -1,0 +1,543 @@
+<?php
+
+/**
+ * Action Module that lets you export pages to CSV
+ *
+ */
+
+class PageActionExportCSV extends PageAction implements Module, ConfigurableModule {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Page Action: Export Pages to CSV', 
+			'summary' => 'An action that lets you export pages to CSV.', 
+			'version' => 2, 
+			'author' => 'Avoine and ProcessWire', 
+			'permission' => 'page-action-export-csv', 
+			'permissions' => array('page-action-export-csv' => 'Page Action: Export Pages to CSV')
+			); 
+	}
+
+	/**
+	 * Name of files field added to user profile
+	 *
+	 */
+	const userFiles = 'csv_files';
+
+	/**
+	 * File pointer to export file
+	 *
+	 */
+	protected $fp = null;
+
+	/**
+	 * A unique ID to associate with a file
+	 *
+	 */
+	protected $uniqueID = null; 
+
+	/**
+	 * System field definitions
+	 *
+	 */
+	protected $systemFields = array();
+
+	/**
+	 * True if dealing with a new file, indicates we need to write headers
+	 *
+	 */
+	protected $isNew = false; 
+
+	/**
+	 * Languages API var, if installed (null otherwise)
+	 *
+	 */
+	protected $languages = null;
+
+	public function __construct() {
+		$this->set('defaultFields', ''); 
+	}
+
+	/**
+	 * Initialize CSV export module
+	 *
+	 */
+	public function init() {
+		$this->systemFields = array(
+			'id' => $this->_('ID'),
+			'name' => $this->_('Name (from URL)'),
+			'path' => $this->_('Path'),
+			'url' => $this->_('URL'),
+			'status' => $this->_('Status'),
+			'created' => $this->_('Date Created'),
+			'modified' => $this->_('Date Last Modified'),
+			'createdUser.id' => $this->_('Created by User: ID'),
+			'createdUser.name' => $this->_('Created by User: Name'),
+			'modifiedUser.id' => $this->_('Modified by User: ID'),
+			'modifiedUser.name' => $this->_('Modified by User: Name'),
+			'parent_id' => $this->_('Parent Page ID'),
+			'parent.name' => $this->_('Parent Page Name'),
+			'template.id' => $this->_('Template ID'),
+			'template' => $this->_('Template Name'),
+			);
+
+		$this->set('format', 'csv'); 
+		$this->set('exportFields', array());
+		$this->set('exportLanguage', 0);
+		$this->languages = $this->wire('languages'); 
+	}
+
+	/**
+	 * Export a single page to a line in the CSV file
+	 *
+	 * @param Page $item
+	 * @return bool 
+	 *
+	 */
+	public function ___action($item) { 
+
+		if(!$this->fp) throw new WireException("This action can only be run in multiple mode"); 
+
+		$a = $this->exportPage($item); 
+
+		if($this->isNew) {
+			// if it's a new file, the first row will be the field names
+			fputcsv($this->fp, array_keys($a)); 
+			$this->isNew = false;
+			$this->getDefaultFields(true); // save default fields
+			
+		}
+
+		fputcsv($this->fp, $a); // output the row data
+
+		return true; 
+	}
+
+	/**
+	 * Execute/process multiple items (part of the WireAction interface)
+	 *
+	 * @param PageArray $items
+	 * @return int
+	 *
+	 */
+	public function ___executeMultiple($items) {
+
+		if(!$items instanceof PageArray) throw new WireException("PageArray required"); 
+
+		$userLanguage = null;
+		if($this->languages) {
+			// ensure exportLanguage is set and that it is a Language object rather than an int
+			if(!$this->exportLanguage) {
+				$this->exportLanguage = $this->languages->getDefault();
+			} else if(!is_object($this->exportLanguage)) {
+				$this->exportLanguage = $this->languages->get((int) $this->exportLanguage); 
+			}
+			// convert user to have the selected language temporarily 
+			$user = $this->wire('user'); 
+			if($user->language->id != $this->exportLanguage->id) {
+				$userLanguage = $user->language; 
+				$user->language = $this->exportLanguage; 	
+			}
+		}
+				
+		$user = $this->wire('user'); 
+		$files = $user->get(self::userFiles); 
+
+		$basename = $this->wire('user')->name . '-' . $this->getUniqueID() . '.' . $this->format; 
+		$pathname = $files->path() . $basename; 
+		$url = $files->url() . $basename; 
+
+		$this->isNew = !is_file($pathname); 
+		$this->fp = fopen($pathname, 'a'); 
+		if(!$this->fp) throw new WireException("Error creating: $pathname"); 
+
+		$numItems = count($items); 
+		$this->message("Writing $numItems item(s) to <a href='$url'>$basename</a>", Notice::allowMarkup); 
+
+		$result = parent::___executeMultiple($items); 
+
+		fclose($this->fp);
+
+		$file = $files->get($basename); 
+		if(!$file) {
+			// add file to user profile
+			$iftAction = $this->iftAction;
+			$user->of(false); 
+			$files->add($pathname); 
+			$file = $files->last();
+			if($iftAction) $file->description = $iftAction->title;
+			$file->description .= ' ' . date($this->_('Y-m-d H:i')) . ' ' . $this->_('exported file'); 
+			$user->save(self::userFiles); 
+			$user->of(true); 
+			$this->message("Added file $basename to user($user->name)." . self::userFiles); 
+		}
+
+		$this->summary = "Download URL: $file->httpUrl";
+
+		if($userLanguage) $this->wire('user')->language = $userLanguage; 
+
+		return $result; 
+	}
+
+	/**
+	 * Export a page to an array
+	 *
+	 * @param Page $page
+	 * @return array
+	 *
+	 */
+	protected function exportPage(Page $page) {
+
+		// $editURL = 'http://' . wire('config')->httpHost . wire('config')->urls->admin . 'page/edit/?id=';
+		// $viewURL = 'http://' . wire('config')->httpHost; 
+
+		$data = array();
+		$options = array(); 
+		$options['human'] = true; 
+
+		foreach($this->exportFields as $field) {
+
+			$subfield = '';
+			if(strpos($field, '.') !== false) list($field, $subfield) = explode('.', $field); 
+
+			$f = $this->wire('fields')->get($field); 
+
+			if($f) {
+				// site field
+				$fieldName = $f->name;
+
+				$value = $page->getUnformatted($fieldName); 
+				$isObject = is_object($value); 
+
+				if($isObject) {
+					if($this->languages && $value->className() == 'LanguagesPageFieldValue') {
+						$value = (string) $value->getLanguageValue($this->exportLanguage); 
+
+					} else if($value instanceof WireArray) {
+						$values = array();		
+						foreach($value as $v) {
+							if(is_object($v)) {
+								$values[] = (string) ($subfield ? $v->$subfield : $v);
+							} else if(is_array($v)) {
+								$values[] = (string) ($subfield ? $v[$subfield] : print_r($v, true)); 
+							} else {
+								$values[] = $v;
+							}
+						}
+						$value = implode("\n", $values); 
+						unset($values); 
+					} else {
+						$value = (string) ($subfield ? $value->$subfield : $value); 
+					}
+
+				} else {
+					$value = $f->type->exportValue($page, $f, $value, $options); 
+				}
+
+			} else {
+				// core field
+				if($this->exportLanguage && !$this->exportLanguage->isDefault()) { 
+					// append language id
+					if($field == 'name' || $field == 'status') $field .= $this->exportLanguage->id; 
+					if($subfield == 'name' || $subfield == 'status') $subfield .= $this->exportLanguage->id; 
+				}	
+				
+				$value = $page->get($field); 
+				if(is_object($value)) {
+					if($subfield) $value = $value->$subfield; 
+						else if($value instanceof Page) $value = $value->name; 
+						else $value = (string) $value; 
+				}
+
+				if($field == 'created' || $field == 'modified') {
+					$value = $value ? date('Y-m-d H:i:s', $value) : '';
+				}
+				$fieldName = $field; 
+			}
+
+			if(is_array($value)) {
+				if(empty($value)) {
+					$value = '';
+				} else {
+					$cnt = 0; 
+					foreach($value as $k => $v) {
+						if(is_array($v) || strlen($v)) $cnt++;
+					}
+					$value = "$cnt $fieldName\n" . print_r($value, true); 
+				}
+			}
+
+			if($subfield) $fieldName .= ".$subfield";
+			
+			$data[$fieldName] = $value; 
+		}
+
+		return $data; 
+	}
+
+	/**
+	 * Get a unique ID that will be used in the filename
+	 *
+	 * This has to account for the potential of combining multiple batches into one file
+	 *
+	 * @return int
+	 *
+	 */
+	protected function getUniqueID() {
+
+		$iftAction = $this->iftAction;
+
+		if($iftAction) {
+			$uniqueID = $iftAction->rootParentID; 
+			if(!$uniqueID) $uniqueID = $iftAction->id; 
+		} else {
+			if($this->uniqueID) return $this->uniqueID; 
+			$uniqueID = time();	
+		}
+
+		$this->uniqueID = $uniqueID; 
+
+		return $uniqueID; 
+	}
+
+	/**
+	 * @return InputfieldWrapper
+	 *
+	 */
+	public function ___getConfigInputfields() {
+
+		$fieldset = parent::___getConfigInputfields();
+
+		$siteFieldNames = array();
+
+		$fields = $this->wire('fields'); 
+		$runner = $this->getRunner();
+		$columns = $this->getDefaultFields();
+		$this->message("columns=" . implode(',', $columns)); 
+
+		if($runner && $runner->className() == 'ListerProActions') { 
+			if(empty($columns)) $columns = $runner->lister->columns; 
+			// refine fields to reflect only those on the Lister's templates	
+			$initSelector = $runner->lister->initSelector; 
+			if(strpos($initSelector, 'template=') !== false) { 
+				$templates = $runner->lister->getSelectorTemplates($initSelector); 
+				$_fields = array();
+				foreach($templates as $template) {
+					foreach($template->fieldgroup as $field) {
+						$_fields[$field->name] = $field; 	
+					}
+				}
+				if(count($_fields)) {
+					ksort($_fields); 
+					$fields = array_values($_fields); 
+				}
+			}
+		}
+		if(empty($columns)) $columns = array('id', 'url', 'title', 'modified'); 
+
+		$select = $this->wire('modules')->get('InputfieldAsmSelect'); 
+		$select->attr('name', 'exportFields'); 
+		$select->label = $this->_('Fields and order to be exported'); 
+		
+		foreach($this->systemFields as $name => $label) {
+			$select->addOption($name, $name, array(
+				'data-desc' => $label, 
+				'data-status' => $this->_('System'),
+				//'selected' => (in_array($name, $columns) ? 'selected' : '')
+				)); 
+		}
+
+		$nullPage = new NullPage();
+
+		foreach($fields as $field) {
+
+			if($field->type instanceof FieldtypeFieldsetOpen) continue; 
+
+			$siteFieldNames[$field->name] = $field->name; 
+
+			$select->addOption($field->name, $field->name, array(
+				'data-desc' => $field->getLabel(), 
+				'data-status' => str_replace('Fieldtype', '', $field->type),
+				//'selected' => (in_array($field->name, $columns) ? 'selected' : '')
+				));	
+
+			$info = $field->type->getSelectorInfo($field); 
+
+			if(count($info['subfields'])) {
+
+				$blankValue = $field->type->getBlankValue($nullPage, $field);
+				if($blankValue instanceof Page || $blankValue instanceof PageArray) {	
+					foreach($this->systemFields as $name => $label) {
+						if(strpos($name, '.') !== false) continue; 
+						$select->addOption("$field->name.$name", "$field->name.$name", array(
+							'data-desc' => "$label: $name", 
+							'data-status' => 'System Subfield', 
+							//'selected' => (in_array("$field->name.$name", $columns) ? 'selected' : '')
+							));
+					}
+				}
+
+				foreach($info['subfields'] as $name => $subinfo) {
+					$select->addOption("$field->name.$name", "$field->name.$name", array(
+						'data-desc' => "$label: $name", 
+						'data-status' => 'Subfield', 
+						//'selected' => (in_array("$field->name.$name", $columns) ? 'selected' : '')
+						));
+				}
+			}
+		}
+
+		$select->attr('value', $columns); 
+		
+		$fieldset->add($select); 
+
+		if($this->languages) {
+			$select = $this->wire('modules')->get('InputfieldSelect'); 
+			$select->attr('name', 'exportLanguage'); 
+			$select->label = $this->_('Language'); 
+			foreach($this->languages as $language) {
+				$select->addOption($language->id, $language->get('title|name')); 
+			}
+			$select->attr('value', $this->wire('user')->language->id); 
+			$fieldset->add($select); 
+		}
+
+
+		return $fieldset; 
+	}
+
+	/**
+	 * Return an array of default fields to popualte as default value in field select
+	 *
+	 * @param bool $save Optionally set to true to save the current exportFields value. 
+	 *
+	 */
+	public function getDefaultFields($save = false) {
+
+		$pageName = $this->wire('page')->name; 
+		$fields = array();
+		$lines = array();
+		if($this->defaultFields) {
+			$defaultFields = explode("\n", $this->defaultFields); 
+			$has = false;
+			foreach($defaultFields as $line) {
+				if(strpos(trim($line), "$pageName=") === 0) $has = true; 
+			}
+			if(!$has) $defaultFields[] = "$pageName="; 
+		} else { 
+			$defaultFields = array("$pageName="); 
+		}
+
+		// defaultFields string: listerName=field1,field2,field3 \nlisterName2=fieldA,fieldB,fieldC
+
+		foreach($defaultFields as $line) {
+
+			if(strpos($line, '=') === false) continue; 
+			list($name, $line) = explode('=', $line); 
+
+			$name = trim($name); 
+			$line = trim($line); 
+
+			if($name != $pageName) {
+				$lines[] = "$name=$line";
+				continue; 	
+			}
+
+			if($save) {
+				$_fields = $this->exportFields;
+				foreach($_fields as $k => $f) {
+					if(ctype_digit("$f")) {
+						$f = $this->wire('fields')->get((int) $f);
+						if($f) $fields[$k] = $f->name; 
+					} else {
+						$fields[$k] = $f; 
+					}
+				}
+				$line = "$pageName=" . implode(',', $fields);
+				$lines[] = $line; 
+			} else {
+				$line = str_replace(',', ' ', $line); 	
+				$_fields = explode(' ', $line); 
+				foreach($_fields as $fieldName) {
+					if(empty($fieldName)) continue; 
+					$fields[] = $fieldName; 
+				}
+				$lines[] = "$pageName=" . implode(',', $fields); 
+			}
+		}
+
+		if($save) {
+			$defaultFields = implode("\n", $lines); 
+			if($defaultFields != $this->defaultFields) { 
+				$data['defaultFields'] = implode("\n", $lines); 
+				$this->wire('modules')->saveModuleConfigData($this, $data); 
+			}
+		}
+
+
+		return $fields;
+	}
+
+	/**
+	 * Install the CSV export module
+	 *
+	 * Add a new 'Export Files' field and make visible in user profile. 
+	 *
+	 */
+	public function ___install() {
+		// install a special files field to user profile
+		$field = $this->wire('fields')->get(self::userFiles); 
+		if(!$field) {
+			$field = new Field();
+			$field->name = self::userFiles; 
+			$field->type = $this->wire('modules')->get('FieldtypeFile'); 
+			$field->label = $this->_('Export Files'); 
+			$field->entityEncode = 1; 
+			$field->noUpload = 1; 
+			$field->extensions = "csv json txt";
+			$field->save();
+			$this->message("Added files field: $field->name"); 
+		}
+
+		$fieldgroup = $this->wire('fieldgroups')->get('user'); 
+		if(!$fieldgroup->hasField($field)) {
+			$fieldgroup->add($field); 
+			$fieldgroup->save();
+			$this->message("Added files field to fieldgroup: $fieldgroup->name"); 
+		}
+
+		$data = $this->wire('modules')->getModuleConfigData('ProcessProfile'); 
+		$data['profileFields'][] = self::userFiles; 
+		$this->wire('modules')->saveModuleConfigData('ProcessProfile', $data); 
+		$this->message("Made files field editable in user profile"); 
+	}
+
+	/**
+	 * Uninstall CSV export module
+	 *
+	 * Note that we don't delete the user files field that was added. 
+	 *
+	 */
+	public function ___uninstall() {
+		$name = self::userFiles; 
+		$this->message("Please note that the field $name added by this module has not been deleted. Delete this manually if the files are no longer needed."); 
+	}
+
+	/**
+	 * Module config screen
+	 *
+	 */
+	public static function getModuleConfigInputfields(array $data) {
+		$form = new InputfieldWrapper();
+		$f = wire('modules')->get('InputfieldTextarea'); 
+		$f->name = 'defaultFields'; 
+		$f->label = __('Default Export Fields (per Lister)'); 
+		$f->description = __('Each line should contain: "lister_name=field1,field2,field3" to serve as a default. No need to set this here, as it will be automatically set when the action runs.'); 
+		if(isset($data['defaultFields'])) $f->attr('value', $data['defaultFields']); 
+		$f->collapsed = Inputfield::collapsedYes; 
+		$form->add($f); 
+		return $form; 
+	}
+}
+
+

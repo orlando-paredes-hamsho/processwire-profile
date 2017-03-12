@@ -1,0 +1,218 @@
+/**
+ * form-builder.css: Legacy CSS file
+ * 
+ * Styles common to all form-builder themes that are based on jQuery UI
+ *
+ * Also provides common typographic defaults that may be overridden by the themes
+ *
+ */
+
+html {
+	background: transparent;
+}
+
+body {
+	font-family: Arial, sans-serif; 
+	font-size: 13px;
+	line-height: 1.4em; 
+	color: #333; 
+	background: transparent; 
+}
+
+/*
+body, 
+.InputfieldForm .Inputfields .Inputfield,
+.InputfieldForm .Inputfields .Inputfield > .ui-widget-header, 
+.InputfieldForm .Inputfields .Inputfield > .InputfieldHeader, 
+.InputfieldForm .Inputfields label,
+.InputfieldForm .Inputfields input,
+.InputfieldForm .Inputfields select,
+.InputfieldForm .Inputfields button,
+.InputfieldForm .Inputfields button.ui-button,
+.InputfieldForm .Inputfields button.ui-button .ui-button-text,
+.InputfieldForm .Inputfields textarea {
+	font-size: 14px; 
+	line-height: 1.6em;
+}
+*/
+
+p, ul, ol, li, table {
+	margin: 1em 0;
+}
+
+strong {
+	font-weight: bold;
+}
+
+em {
+	font-style: italic;
+}
+
+a {
+	color: #555; 
+	text-decoration: underline;
+}
+
+textarea {
+	/* if an iframe embedded textarea is resized, it can cause a problem */
+	/* this prevents the textarea size built into chrome */
+	resize: none; 
+}
+
+.container { 
+	width: 100%; 
+	margin: 0; 
+	min-width: 100px; 
+}
+
+#content { 
+	margin: 0; 
+	padding: 0; 
+}
+
+.description {
+	/* field description */
+}
+
+.notes {
+	/* notes */
+	font-size: 0.9166666em;
+	color: #888; 
+	background: none; 
+}
+
+.detail {
+	/* detail, smaller text */
+	font-size: 0.9166666em;
+}
+
+#wrap_Inputfield- {	
+	/* hp */
+	display: none; 
+}
+
+.content .ui-button {
+	/* optimize the look of submit button */
+	margin: 0 1em 0 0;
+	padding: 8px 12px;
+	cursor: pointer;
+	box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+	margin-left: 1px;
+	font-weight: bold;
+}
+
+.Inputfields input[type=text],
+.Inputfields input[type=email],
+.Inputfields input[type=url],
+.Inputfields input[type=password],
+.Inputfields input[type=number],
+.Inputfields textarea {
+	/* optimize look of text inputs */
+	padding: 3px 6px;
+	box-sizing: border-box;
+}
+
+
+#notices li,
+p.ui-state-highlight,
+p.ui-state-error {
+	/* pad the notices */
+	padding: 0.5em 1em; 
+}
+
+.Inputfield > .ui-widget-header {
+	/* padding for field header */ 
+	padding: 0.35em 1em 0.35em 0.85em;
+}
+
+label.ui-widget-header + div.ui-widget-content {
+	/* remove doubled border between header/content on ui-widgets */
+	border-top: none; 
+}
+
+.InputfieldFieldset > label.ui-widget-header {
+	/* uncomment if you want fieldset headers to be larger */
+	/*
+	font-size: 1.3em; 
+	padding-top: 0.5em;
+	padding-bottom: 0.5em; 
+	*/
+}
+
+button.ui-datepicker-trigger {
+	/* tweak to datepicker trigger */
+        margin: 0 0 0 0.5em;
+}
+
+
+p span.ui-state-error {
+	/* pad the inline messages a bit */
+	padding: 0.25em 0.5em;
+}
+
+.InputfieldForm ul {
+	/* some inputs use ul lists, and we don't want left padding on them */
+	padding-left: 0;
+}
+
+/**
+ * InputfieldMarkup used for the following:
+ *
+ * 1. Styles applied to InputfieldMarkup inputs
+ *
+ * 2. Used as the place where success text is output when loaded from another page
+ *
+ * You may want to replace/add your own styles for consistency with your site.
+ *
+ */
+
+.InputfieldMarkup h1 {
+        font-size: 2em;
+}
+
+.InputfieldMarkup h2 {
+        font-size: 1.5em;
+}
+
+.InputfieldMarkup h3 {
+        font-size: 1.3em;
+}
+
+.InputfieldMarkup .ui-widget-content ul,
+.InputfieldMarkup .ui-widget-content ol {
+        padding-left: 3em; 
+}
+
+.InputfieldMarkup .ui-widget-content ul li {
+        list-style: disc; 
+        margin: 0;
+}
+
+.InputfieldMarkup .ui-widget-content ol li {
+        list-style: decimal;
+}
+
+.Inputfields input.InputfieldMaxWidth,
+.Inputfields textarea {
+	width: 100%; 
+}
+
+
+.FormBuilderEditField .ui-icon {
+	padding-right: 0 !important;
+}
+
+
+/* Mobile Portrait Size to Mobile Landscape Size (devices and browsers) */
+@media only screen and (max-width: 479px) {
+        /**
+         * Disregard column width when at mobile size
+         *
+         */
+        .Inputfield {
+                clear: both !important;
+                width: 100% !important;
+                margin-left: 0 !important;
+                margin-bottom: 1em !important; 
+        }
+}

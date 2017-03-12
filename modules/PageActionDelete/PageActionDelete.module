@@ -1,0 +1,90 @@
+<?php
+
+/**
+ * ListerPro Page action that deletes pages
+ *
+ */ 
+
+class PageActionDelete extends PageAction implements Module {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => __('Page Action: Delete/Trash Pages', __FILE__), 
+			'summary' => __('Action that trashes or deletes a page.'), 
+			'version' => 2, 
+			'author' => 'Ryan Cramer', 
+			'permission' => 'page-action-delete', 
+			'permissions' => array('page-action-delete' => 'Page Action: Delete/Trash Pages'),
+			); 
+	}
+
+	const typeTrash = 1; 
+	const typeDelete = 2; 
+	const typeDeleteRecursive = 3; 
+
+	protected $labels = array();
+
+	public function __construct() {
+		$this->set('delete_type', self::typeTrash);
+		
+		$this->labels = array(self::typeTrash => $this->_('Move to trash'));
+		if($this->wire('user')->isSuperuser()) {
+			$this->labels[self::typeDelete] = $this->_('Delete permanently');
+			$this->labels[self::typeDeleteRecursive] = $this->_('Delete permanently (including children)');
+		}
+	}
+
+	protected function ___action($item) {
+
+		if(!$item->deleteable()) return false; 
+		
+		$status = $this->set_status; 
+		$type = $this->delete_type; 
+		if(!isset($this->labels[$type])) return false;
+		$label = $this->statusLabels[$type]; 
+		$success = false;
+		$isSuperuser = $this->wire('user')->isSuperuser();
+
+		if($type == self::typeTrash) {
+			if(!$item->isTrash()) {
+				$this->wire('pages')->trash($item); 
+				$success = true; 
+			}
+		} else if($type == self::typeDelete && $isSuperuser) {
+			if($item->numChildren) {
+				$this->error($item->id . ' - ' . $this->_('Not deleted because it has children.')); 
+			} else {
+				$success = $this->wire('pages')->delete($item); 
+			}
+		} else if($type == self::typeDeleteRecursive && $isSuperuser) {
+			$success = $this->wire('pages')->delete($item, true); 
+		
+		}
+
+		return $success; 	
+	}
+
+	public function ___getConfigInputfields() {
+
+		$info = self::getModuleInfo();
+
+		$fieldset = parent::___getConfigInputfields();
+		$fieldset->label = $info['title']; 
+
+		$f = $this->wire('modules')->get('InputfieldRadios'); 
+		$f->attr('name', 'delete_type'); 
+		$f->attr('value', $this->delete_type); 
+		$f->label = $this->_('Deletion Type'); 
+
+		foreach($this->labels as $value => $label) {
+			$f->addOption($value, $label); 
+		}
+
+		$fieldset->add($f); 
+
+		return $fieldset; 
+	}
+
+
+}
+

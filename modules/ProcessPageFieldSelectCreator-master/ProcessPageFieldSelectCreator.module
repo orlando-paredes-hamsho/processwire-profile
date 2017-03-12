@@ -1,0 +1,591 @@
+<?php
+
+/**
+ * ProcessWire Page Field Select Creator
+ * by Adrian Jones
+ *
+ * Allows automated creation of Page fields, along with the templates and page tree for their source.
+ *
+ * ProcessWire 2.x
+ * Copyright (C) 2011 by Ryan Cramer
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ *
+ * http://www.processwire.com
+ * http://www.ryancramer.com
+ *
+ */
+
+class ProcessPageFieldSelectCreator extends Process implements Module, ConfigurableModule {
+
+    /**
+     * getModuleInfo is a module required by all modules to tell ProcessWire about them
+     *
+     * @return array
+     *
+     */
+    public static function getModuleInfo() {
+        return array(
+            'title' => __('Page Field Select Creator'),
+            'version' => 26,
+            'summary' => __('Automated creation of Page fields, along with the templates and page tree for their source.'),
+            'singular' => true,
+            'autoload' => false,
+            'icon'     => 'bars'
+            );
+    }
+
+    /**
+     * Name used for the page created in the admin
+     *
+     */
+    const adminPageName = 'page-field-select-creator';
+
+
+    /**
+     * Instance of Page, representing the parent Page for imported pages
+     *
+     */
+    protected $parent = null;
+
+
+   /**
+     * Default configuration for module
+     *
+     */
+    static public function getDefaultData() {
+        return array(
+            "childSuffix" => "Items"
+        );
+    }
+
+    public function __construct() {
+        foreach(self::getDefaultData() as $key => $value) {
+            $this->$key = $value;
+        }
+    }
+
+
+    /**
+     * Data as used by the get/set functions
+     *
+     */
+    protected $data = array();
+
+
+    /**
+     * Initialize the module
+     *
+     */
+    public function init() {
+        parent::init();
+    }
+
+    /**
+     * Executed when root url for module is accessed
+     *
+     */
+    public function ___execute() {
+
+        $form = $this->buildForm1();
+        if($this->input->post->submit) {
+            return $this->processForm1($form);
+        }
+        else{
+            return $form->render();
+        }
+
+    }
+
+
+    /**
+     * Build the form
+     *
+     */
+    protected function buildForm1() {
+
+        $form = $this->modules->get("InputfieldForm");
+        $form->method = 'post';
+        $form->description = "Settings";
+
+        $f = $this->modules->get("InputfieldText");
+        $f->name = "fieldTitle";
+        $f->label = __("Field Title");
+        $f->required = true;
+        $f->description = __("The title of the page field to be created. eg. Room Types");
+        $f->notes = __("Use capitals, spaces etc as this is also used for the parent page name and various labels.");
+        if($this->session->fieldTitle) $f->attr('value', $this->session->fieldTitle);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldText");
+        $f->name = "fieldDescription";
+        $f->label = __("Field Description");
+        $f->description = __("The description for the page field to be created.");
+        $f->collapsed = Inputfield::collapsedBlank;
+        if($this->session->fieldTitle) $f->attr('value', $this->session->fieldTitle);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldTextarea");
+        $f->name = "selectOptions";
+        $f->label = __("Select Options");
+        $f->description = __("These will become the child pages that will populate the page field select options. There are two different options.") . "\n\n" .
+            __("Option 1. TITLE FIELD ONLY - enter one option per line, eg:") . "\n\n" .
+            __("Single") . "\n" .
+            __("Double") . "\n" .
+            __("Suite") . "\n\n" .
+            __("Option 2a. MULTIPLE FIELDS - the first line is used for the field names and the first field must be 'Title'. Subsequent lines are the values for the fields, eg:") . "\n\n" .
+            __("Title, Number of Beds, Number of People, Kitchen Facilities") . "\n" .
+            __("Single, 1, 1, Fridge Only") . "\n" .
+            __("Double, 2, 2, Fridge Only") . "\n" .
+            __("Suite, 3, 6, Full Kitchen") . "\n\n" .
+            __("Option 2b. MULTIPLE FIELDS WITH SPECIFIED FIELD TYPES - same as 2a, except that you can specify the field types (Integer, Text, Textarea, TextLanguage, TextareaLanguage, Datetime, Email, Password), eg:") . "\n\n" .
+            __("Title, Number of Beds>Integer, Number of People>Integer, Kitchen Facilities>Text") . "\n" .
+            __("Single, 1, 1, Fridge Only") . "\n" .
+            __("Double, 2, 2, Fridge Only") . "\n" .
+            __("Suite, 3, 6, Full Kitchen");
+        $f->notes = __("NB For Option 2a or 2b, \"Title\" must be the first option on the first line.\n\n" .
+            "You can use CSV values with commas etc so long as you use double quote enclosures, eg: \"Bolivia, Plurinational State of\", BO, \"BOLIVIA, PLURINATIONAL STATE OF\", BOL, 68\n\n" .
+            "For the multiple fields option, you can specify titles for new fields and they will be created automatically. Use capitals, spaces etc for new field names as these will be used for the field label and converted for the name.") . "\n\n" .
+            "Or you can choose from the following existing text fields:" . "\ntitle, " . implode(", ", $this->fields->find("type=FieldtypeText|FieldtypeInteger|FieldtypeTextarea|FieldtypeTextLanguage|FieldtypeTextareaLanguage|FieldtypeDatetime|FieldtypeEmail|FieldtypePassword")->getArray());
+        $f->required = true;
+        if($this->session->selectOptions) $f->attr('value', $this->session->selectOptions);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldText");
+        $f->name = "parentTemplate";
+        $f->label = __("Parent Template Label / Name");
+        $f->description = __("The label for the parent template to be created");
+        $f->notes = __("You can leave as is (generated from the Field Title entered above) or change if you wish. Use capitals, spaces etc. The template name will be converted from the entered label.") . "\n\n" .
+            __("Or you can choose from the following existing templates:") . "\n" . implode(", ", $this->templates->find("flags=0")->getArray());
+        $f->required = true;
+        $f->collapsed = Inputfield::collapsedBlank;
+        if($this->session->fieldTitle) $f->attr('value', $this->session->fieldTitle);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldHidden");
+        $f->name = "childTemplateSuffix";
+        $f->attr('value', $this->data["childSuffix"]);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldText");
+        $f->name = "childTemplate";
+        $f->label = __("Child Template Label / Name");
+        $f->description = __("The label for the child template to be created");
+        $f->notes = __("You can leave as is (generated from the Field Title entered above plus the child template suffix in the module config settings) or change if you wish. Use capitals, spaces etc. The template name will be converted from the entered label.") . "\n\n" .
+            __("Or you can choose from the following existing templates:") . "\n" . implode(", ", $this->templates->find("flags=0")->getArray());
+        $f->required = true;
+        $f->collapsed = Inputfield::collapsedBlank;
+        if($this->session->fieldTitle) $f->attr('value', $this->session->fieldTitle);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldPageListSelect");
+        $f->name = "treeParent";
+        $f->label = __("Parent Page");
+        $f->required = true;
+        $f->description = __("The parent where you want the parent of the selectable pages created. For example you may want to choose a hidden 'Options' parent page.");
+        if($this->session->treeParent) $f->attr('value', $this->session->treeParent);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldRadios");
+        $f->name = "derefAsPage";
+        $f->label = __("Dereference in API as");
+        $f->description = __("If you want your field to support selection of multiple items (pages), then you should select the first option (PageArray). If your field only needs to support selection of a single item (page), then select one of the single Page options (if you are not sure which, select the last option).");
+        $f->required = true;
+        $f->addOption('0', __('Multiple pages (PageArray)'));
+        $f->addOption('1', __('Single page (Page) or boolean false when none selected'));
+        $f->addOption('2', __('Single page (Page) or empty page (NullPage) when none selected'));
+        $this->session->derefAsPage ? $f->attr('value', $this->session->derefAsPage) : $f->attr('value', 0);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldSelect");
+        $f->name = "inputfield";
+        $f->label = __("Input field type");
+        $f->description = __('The type of field that will be used to select a page. Select one that is consistent with the single page vs. multi-page you chose in the "Dereference in API as" field.');
+        $f->required = true;
+        $f->notes = '* ' . $this->_('Types indicated with an asterisk are for multiple page selection.') . "\n" .
+                    '+ ' . $this->_('Types indicated with a plus assume a "parent" to be the root of a tree, rather than an immediate parent.');
+        foreach($this->modules->get("InputfieldPage")->data['inputfieldClasses'] as $class) {
+            $module = $this->modules->get($class);
+            $label = str_replace("Inputfield", '', $class);
+            if($module instanceof InputfieldHasArrayValue) $label .= "*";
+            if(is_subclass_of($module, 'InputfieldPageListSelection')) $label .= "+";
+            $f->addOption($class, $label);
+        }
+
+        if($this->session->inputfield) $f->attr('value', $this->session->inputfield);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldCheckbox");
+        $f->name = "addable";
+        $f->label = __("Allow new pages to be created from field?");
+        $f->description = __("If checked, an option to add new page(s) will also be present if the editing user has access to create/publish these pages.");
+        $f->notes = __("All other requirements (parent & template selected and label-field set to title) for this feature to work are set automatically.");
+        $f->attr('checked', $this->session->addable == '1' ? 'checked' : '' );
+        if($this->session->addable) $f->attr('value', $this->session->addable);
+        $form->add($f);
+
+        $f = $this->modules->get("InputfieldCheckbox");
+        $f->name = "preventaddnewshortcut";
+        $f->label = __("Prevent template for select option pages from being added to the Add Page shortcut menu?");
+        $f->description = __("If checked, the template for the select option pages won't be added to the the 'Add New Page' shortcut button/menu that appears on the main Pages screen.");
+        $f->notes = __("This adds 'noShortcut:1' to templates settings.");
+        $f->attr('checked', $this->session->preventaddnewshortcut == '1' ? 'checked' : '' );
+        if($this->session->preventaddnewshortcut) $f->attr('value', $this->session->preventaddnewshortcut);
+        $form->add($f);
+
+
+
+        $this->addSubmit($form, __("Create field, templates, and pages"));
+
+        return $form;
+    }
+
+    /**
+     * Process the form and populate session variables with the results
+     *
+     */
+    protected function processForm1(InputfieldForm $form) {
+
+        $form->processInput($this->input->post);
+        if(count($form->getErrors()) || $form->get('treeParent')->value == ''){
+            $this->error("Missing required field(s)");
+            return $form->render();
+        }
+
+        $fieldTitle = $form->get('fieldTitle')->value;
+        $fieldName = $this->sanitizer->fieldName(strtolower($fieldTitle));
+
+        $parentTemplateLabel = $form->get('parentTemplate')->value;
+        $parentTemplateName = $this->sanitizer->name(strtolower($parentTemplateLabel));
+
+        $this->session->fieldTitle = $this->sanitizer->textarea($this->input->fieldTitle);
+        $this->session->selectOptions = $this->sanitizer->textarea($this->input->selectOptions);
+        $this->session->treeParent = (int) $this->input->treeParent;
+        $this->session->derefAsPage = (int) $this->input->derefAsPage;
+        $this->session->inputfield = $this->input->inputfield;
+        $this->session->addable = (int) $this->input->addable;
+
+        if($this->fields->$fieldName) {
+            $this->session->fieldTitle = '';
+            return "<h2>{$this->_('Field already exists')}</h2><p>{$this->_('The page field you are trying to create already exists.')}</p><p>{$this->_('You can either')} <a href='./'>{$this->_('try again')}</a> {$this->_('with a different Field Title, or')} <a href='{$this->config->urls->admin}setup/field/edit?id={$this->fields->$fieldName->id}'>{$this->_('edit/delete the existing field')}</a>.</p>";
+        }
+
+
+        //Templates - first iteration to create fieldgroups and templates
+        //Parent template
+        if(!$this->fieldgroups->$parentTemplateName) {
+            $fg = new Fieldgroup();
+            $fg->name = $parentTemplateName;
+            $fg->add("title");
+            $fg->save();
+        }
+        else{
+            $fg = $this->fieldgroups->$parentTemplateName;
+        }
+
+
+        if(!$this->templates->$parentTemplateName) {
+            $parent_template = new Template();
+            $parent_template->name = $parentTemplateName;
+            $parent_template->label = $parentTemplateLabel;
+            $parent_template->fieldgroup = $fg;
+            $parent_template->save();
+        }
+        else{
+            $parent_template = $this->templates->$parentTemplateName;
+        }
+
+
+        //Child template
+        $childTemplateLabel = $form->get('childTemplate')->value;
+        $childTemplateName = $this->sanitizer->fieldName(strtolower($childTemplateLabel));
+
+        if(!$this->fieldgroups->$childTemplateName) {
+            $fg = new Fieldgroup();
+            $fg->name = $childTemplateName;
+            $fg->add("title");
+            $fg->save();
+        }
+        else{
+            $fg = $this->fieldgroups->$childTemplateName;
+        }
+
+        if(!$this->templates->$childTemplateName) {
+            $child_template = new Template();
+            $child_template->name = $childTemplateName;
+            $child_template->label = $childTemplateLabel;
+            $child_template->noShortcut = $form->get('preventaddnewshortcut')->value == 1 ? '1' : '';
+            $child_template->fieldgroup = $fg;
+            $child_template->save();
+        }
+        else{
+            $child_template = $this->templates->$childTemplateName;
+        }
+
+
+        //Templates - second iteration to save settings.
+
+        //Parent Template
+        $parent_template->noParents = 1;
+        $parent_template->childTemplates = array($child_template->id);
+        $parent_template->save();
+
+        //Child template
+        $child_template->noChildren = 1;
+        $child_template->parentTemplates = array($parent_template->id);
+        $child_template->save();
+
+
+
+        //Pages
+        //Parent
+        $pageName = $this->sanitizer->pageName($fieldTitle, true);
+        if(!$this->pages->$pageName){
+
+            $parent = $this->pages->get($form->get('treeParent')->value);
+
+            $page = new Page();
+            $page->parent = $parent;
+            $page->template = $parent_template;
+            $page->name = $pageName;
+            $page->title = $fieldTitle;
+            $page->of;
+            $page->save();
+
+        }
+
+        //Child pages - ie select options
+        $i=0;
+        $selectOptions = trim(preg_replace("/(^[\r\n]*|[\r\n]+)[\s\t]*[\r\n]+/", "\n", $form->get('selectOptions')->value),"\n"); // remove any blank lines from the textarea
+
+        if(strpos($selectOptions,',') !== false) $selectOptions = stristr($selectOptions, "Title"); //if Option 2, then need to remove anything from before "Title"
+
+        foreach(explode("\n",$selectOptions) as $selectTitle){
+
+            if(strpos($selectTitle,',') !== false){ // Creation of child pages using Option 2 configuration options - comma should be a good enough indicator to check for
+
+                $x=0;
+
+                if($i==0){
+                    $selectTitle = trim($selectTitle,", \t\0\x0B"); //prevent potential creation of blank fields and pages if leading or trailing comma etc provided
+                }
+                else{
+                    $selectTitle = ltrim($selectTitle,", \t\0\x0B"); //not first row so only want to remove leading commas etc, because trailing ones could be blank field values
+                }
+
+                foreach(str_getcsv($selectTitle) as $selectFieldTitle){
+
+                    if(strpos($selectFieldTitle,'>') !== false){
+                        $selectFieldTitleName = strstr($selectFieldTitle, '>', true);
+                        $selectFieldType = 'Fieldtype' . str_replace($selectFieldTitleName . '>', '', $selectFieldTitle);
+                    }
+                    else{
+                        $selectFieldTitleName = $selectFieldTitle;
+                        $selectFieldType = 'FieldtypeText';
+                    }
+                    $selectFieldName = $this->sanitizer->fieldName(strtolower(trim($selectFieldTitleName)));
+
+
+                    if($i==0){ //First loop/line is for field creation. Remaining are for child pages
+
+                        if($selectFieldName != 'title' && $selectFieldName != '') { //No need to create title field, and don't want to create a field with no name - possible if trailing comma left in place
+
+                            $sub_field[$x] = $selectFieldName; // Store name of fields for later population of values in child page
+
+                            if(!$this->fields->$selectFieldName){
+                                $field = new Field();
+                                $field->type = $this->modules->get($selectFieldType); // get a field type
+                                $field->name = $selectFieldName;
+                                $field->label = $selectFieldTitleName;
+                                $field->save(); // save the field
+
+                                $child_template->fieldgroup->append($field); // add new field to template
+                            }
+                            else{
+                                $child_template->fieldgroup->append($this->fields->$selectFieldName); // add existing field to template - NB: this does not change any of the attributes of a field if it already exists - this could be problematic
+                            }
+
+                            $child_template->fieldgroup->save();
+                        }
+
+                    }
+                    else{ // All but first loop - for creating child pages from the rest of the lines in the select options textarea
+
+                        if($x==0 && $selectFieldName != ''){ // First value in comma separated row should be the title, so create the child page with this
+                            $child_page = new Page();
+                            $child_page->parent = $page;
+                            $child_page->template = $child_template;
+                            $child_page->name = $this->sanitizer->pageName($selectFieldTitleName, true);
+                            $child_page->title = $selectFieldTitle;
+                            $child_page->of;
+                            $child_page->save();
+                        }
+                        else{ // Add values for the other fields to the child page
+                            if(isset($child_page) && $child_page->id && isset($sub_field) && isset($sub_field[$x])){
+                                $child_page->$sub_field[$x] = $selectFieldTitle;
+                                $child_page->save();
+                            }
+                        }
+
+                    }
+
+                    $x++;
+                }
+            }
+            else{ // Creation of child pages using the SIMPLE configuration option
+                $child_page = new Page();
+                $child_page->parent = $page;
+                $child_page->template = $child_template;
+                $child_page->name = $this->sanitizer->pageName($selectTitle, true);
+                $child_page->title = $selectTitle;
+                $child_page->of;
+                $child_page->save();
+            }
+
+            $i++;
+        }
+
+
+
+        //Page Field
+        if(!$this->fields->$fieldName && $fieldName != ''){
+            $field = new Field();
+            $field->type = $this->modules->get('FieldtypePage'); // get a field type
+            $field->name = $fieldName;
+            $field->label = $fieldTitle;
+            $field->description = $form->get('fieldDescription')->value;
+            $field->derefAsPage = $form->get('derefAsPage')->value;
+            $field->parent_id = $page->id;
+            $field->template_id = $child_template->id;
+            $field->inputfield = $form->get('inputfield')->value;
+            $field->labelFieldName = 'title';
+            $field->addable = $form->get('addable')->value;
+            $field->save(); // save the field
+        }
+
+        return $this->processFormMarkup($field, $parent_template, $child_template, $page);
+
+    }
+
+
+
+    /**
+     * Provide the completion output markup for processImportForm1
+     *
+     */
+    protected function processFormMarkup($field, $parent_template, $child_template, $page) {
+
+        $this->session->fieldTitle = '';
+        $this->session->selectOptions = '';
+
+        $out = '';
+        $out .= "<h2>Created all required templates and pages for the $field->label field</h2>" .
+            "<p><a href='{$this->config->urls->admin}setup/field/edit?id={$field->id}'>{$this->_('View the created page field')}</a></p>
+            <p><a href='{$this->config->urls->admin}setup/template/edit?id={$parent_template->id}'>{$this->_('View the parent template')}</a></p>
+            <p><a href='{$this->config->urls->admin}setup/template/edit?id={$child_template->id}'>{$this->_('View the child template')}</a></p>
+            <p><a href='{$this->config->urls->admin}page/list/?open={$page->id}'>{$this->_('Open the page tree')}</a></p>
+            <p><a href='./'>Create another page field</a></p>";
+
+        return $out;
+    }
+
+
+
+    /**
+     * Add a submit button, moved to a function so we don't have to do this several times
+     *
+     */
+    protected function addSubmit(InputfieldForm $form, $value = 'Submit') {
+        $f = $this->modules->get("InputfieldSubmit");
+        $f->name = 'submit';
+        $f->value = $value;
+        $form->add($f);
+    }
+
+
+
+    /**
+     * Get any inputfields used for configuration of this Fieldtype.
+     *
+     * This is in addition to any configuration fields supplied by the parent Inputfield.
+     *
+     * @param Field $field
+     * @return InputfieldWrapper
+     *
+     */
+    public static function getModuleConfigInputfields(array $data) {
+
+        $data = array_merge(self::getDefaultData(), $data);
+
+        $modules = wire('modules');
+        $config = wire('config');
+
+        $inputfields = new InputfieldWrapper();
+
+        $f = $modules->get("InputfieldText");
+        $f->attr('name', 'childSuffix');
+        $f->attr('value', $data["childSuffix"]);
+        $f->attr('size', 20);
+        $f->label = __('Child Template Suffix');
+        $f->description = __('The suffix to append to the template name for the child pages.');
+        $f->notes = __("Use capitals, spaces etc as this also be used for the template label.\nThe default 'Items' will be converted to '_items' for the name.");
+        $inputfields->add($f);
+
+        return $inputfields;
+    }
+
+
+
+
+    /**
+     * Install the module and create the page where it lives
+     *
+     */
+    public function ___install() {
+
+        if(ProcessWire::versionMajor == 2 && ProcessWire::versionMinor < 1) {
+            throw new WireException($this->_("This module requires ProcessWire 2.1 or newer"));
+        }
+
+        $page = $this->getInstalledPage();
+        $this->message("Installed to {$page->path}");
+        if($page->parent->name == 'setup') $this->message($this->_("Click to your 'Setup' page to start using the Page Field Select Creator"));
+    }
+
+    /**
+     * Return the page that this Process is installed on
+     *
+     */
+    protected function getInstalledPage() {
+
+        $admin = $this->pages->get($this->config->adminRootPageID);
+        $parent = $admin->child("name=setup");
+        if(!$parent->id) $parent = $admin;
+        $page = $parent->child("name=" . self::adminPageName);
+
+        if(!$page->id) {
+            $page = new Page();
+            $page->parent = $parent;
+            $page->template = $this->templates->get('admin');
+            $page->name = self::adminPageName;
+            $page->title = "Page Field Select Creator";
+            $page->process = $this;
+            $page->sort = $parent->numChildren;
+            $page->save();
+        }
+
+        return $page;
+    }
+
+    /**
+     * Uninstall the module
+     *
+     */
+    public function ___uninstall() {
+        $page = $this->getInstalledPage();
+        if($page->id) {
+            $this->message("Removed {$page->path}");
+            $this->pages->delete($page);
+        }
+    }
+
+}

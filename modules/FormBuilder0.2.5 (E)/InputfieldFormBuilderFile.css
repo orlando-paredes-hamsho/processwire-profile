@@ -1,0 +1,15 @@
+.InputfieldFormBuilderFileItem label {
+	display: inline !important;
+}
+
+.InputfieldFormBuilderFileList {
+	list-style: none;
+	margin-left: 0;
+	padding-left: 0;
+}
+
+.InputfieldFormBuilderFileList li {
+	list-style: none;
+	margin-left: 0;
+	padding-left: 0;
+}

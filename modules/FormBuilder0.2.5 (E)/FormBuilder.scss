@@ -1,0 +1,248 @@
+
+/**
+ * InputfieldForm CSS file for FormBuilder with non-Legacy frameworks
+ *
+ */
+
+$gutter-width: 1.5em;
+$gutter-height: 1.5em;
+$fieldset-gutter-height: 2.5em;
+
+.InputfieldForm {
+
+	textarea,
+	.InputfieldMaxWidth {
+		width: 100%;
+	}
+
+	input[type="text"],
+	input[type="password"],
+	input[type="date"],
+	input[type="datetime"],
+	input[type="datetime-local"],
+	input[type="month"],
+	input[type="week"],
+	input[type="email"],
+	input[type="number"],
+	input[type="search"],
+	input[type="tel"],
+	input[type="time"],
+	input[type="url"],
+	input[type="color"],
+	select, 
+	textarea {
+		margin: 0;
+	}
+
+	&,
+	& *,
+	& *:before,
+	& *:after {
+		-moz-box-sizing: border-box;
+		-webkit-box-sizing: border-box;
+		box-sizing: border-box;
+	}
+
+	.Inputfields {
+		// only necessary of .Inputfields is a <ul>
+		height: auto;
+		list-style: none;
+		padding: 0;
+	}
+
+	.Inputfield {
+		// only necessary if .Inputfield is a <li>
+		list-style: none;
+		display: block;
+	}
+	
+	.Inputfield {
+		clear: both;
+		margin: 0 0 $gutter-height 0;
+		&:not(fieldset) {
+			padding: 0;
+		}
+	}
+	
+	.InputfieldHeader {
+		// margin-bottom: 0;
+	}
+	
+	fieldset, 
+	.InputfieldFieldset {
+		margin: 0 0 $gutter-height 0;
+		padding-bottom: 0;
+	}
+	
+	.InputfieldStateCollapsed {
+		.InputfieldHeader {
+			opacity: 0.5;
+			&:after {
+				// Add ellipsis to collapsed fields 
+				content: " \2026";
+			}
+		}
+		.InputfieldContent {
+			// collapsed Inputfields don't show their content (only header) 
+			display: none;
+		}
+	}
+	
+	.InputfieldHidden {
+		display: none;
+	}
+	
+	.description,
+	.notes {
+		margin: 0.25em 0;
+	}
+	
+	.Inputfield:not(.InputfieldStateCollapsed) > .InputfieldHeaderHidden > span {
+		// don't display header for non-collapsed inputfields with InputfieldHeaderHidden class on InputfieldHeader element
+		display: none;
+	}
+	
+}
+
+.InputfieldFormWidths {
+	
+	/** the following have to do with column widths **********************************************/
+
+	input[type=text],
+	input[type=email],
+	input[type=url],
+	input[type=number],
+	select,
+	textarea {
+		width: 100%;
+	}
+
+	.InputfieldColumnWidth {
+		/* an Inputfield that has a percentage width assigned to it */
+		float: left;
+		clear: none;
+		margin-left: 0;
+		margin-right: 0;
+
+		> .InputfieldHeader,
+		> .InputfieldContent {
+			padding-left: $gutter-width;
+		}
+
+	}
+	
+	.InputfieldColumnWidthFirst,
+	.InputfieldColumnWidth + .InputfieldSubmit,
+	.InputfieldColumnWidthFirstTmp, /* for dependencies */
+	.InputfieldColumnWidthFirst.InputfieldStateHidden + .Inputfield {
+		/* first Inputfield with a percent width... */
+		/* ...or the last percentage-width Inputifeld before the submit button */
+		clear: both;
+
+		> .InputfieldHeader,
+		> .InputfieldContent {
+			padding-left: 0;
+		}
+	}
+
+	.description {
+		margin: 0.25em 0;
+	}
+	.notes {
+		margin: 0.25em 0;
+	}
+
+}
+		
+		
+/*** state toggles *******************************************************/
+
+.InputfieldStateToggle {
+	cursor: pointer;
+
+	i.toggle-icon {
+		/* the open/close icon that goes with most Inputfields */
+		float: right;
+		padding-right: 0.25em;
+	}
+	i.toggle-icon {
+		padding-right: 0.5em;
+		// color: lighten($label-link-color, 60%);
+		line-height: 1.7em;
+	}
+	i + i {
+		margin-right: 0.5em;
+		margin-left: 0;
+	}
+} 
+
+	
+/*** misc ******************************************************************/
+
+.InputfieldStateRequired > .InputfieldHeader:first-child:after {
+	/* Required state: Add asterisk to indicate field is required */
+	content: '*';
+	margin-left: 0.25em; // CORE
+	color: red;
+}
+
+.FormBuilderFrameworkLegacy,
+.FormBuilderFrameworkDefault {
+
+	// clearfix for legacy and default frameworks
+	// @todo check to see if this can now be removed
+	
+	.Inputfields > .Inputfield > .InputfieldContent:before,
+	.Inputfields > .Inputfield > .InputfieldContent:after,
+	&:after {
+		content: " ";
+		display: table;
+	}
+	.Inputfields > .Inputfield > .InputfieldContent:after,
+	&:after {
+		clear: both;
+	}
+}
+
+.InputfieldSelect ul,
+.InputfieldRadios ul,
+.InputfieldCheckboxes ul {
+	margin: 0;
+	li {
+		margin: 0;
+	}
+}
+
+#wrap_Inputfield- {
+	display: none;
+}
+
+/****************************************************************************
+ * Render Value Mode 
+ *
+ * Used when only values are being rendered in the form (no inputs)
+ *
+ */
+
+.InputfieldRenderValueMode {
+
+	.InputfieldSelect li,
+	.InputfieldRadios li,
+	.InputfieldCheckboxes li {
+		margin: 0;
+	}
+
+	.InputfieldSubmit,
+	.InputfieldButton {
+		display: none;
+	}
+}
+
+.pw-no-select {
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-o-user-select: none;
+	user-select: none; /* prevent selection of this element */
+}
+
